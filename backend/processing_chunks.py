@@ -1,4 +1,6 @@
 from langchain_core.documents import Document
+from ytBackend.app import ytt_vid
+import json
 
 def cluster(chunks, group_size=7):
     clustered = []
@@ -25,7 +27,8 @@ def cluster(chunks, group_size=7):
     return clustered
 
 
-def convDoc(chunks):
+def convDoc(oldChunks):
+    chunks = cluster(oldChunks)
     docs = [Document(
         page_content = chunk['text'],
         metadata = {
@@ -35,3 +38,10 @@ def convDoc(chunks):
     )
     for chunk in chunks]
     return docs
+
+if __name__ == "__main__":
+    with open("docs.json", "r") as f:
+        oldChunks = json.load(f)
+
+    docs = convDoc(oldChunks) 
+    print(docs)
