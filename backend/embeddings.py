@@ -9,26 +9,30 @@ embeddings = OllamaEmbeddings(
 
 client = QdrantClient(url="http://localhost:6333")
 
-client.create_collection(
-    collection_name="myCollection",
-    vectors_config=VectorParams(
-        size=1024,
-        distance=Distance.COSINE
-    )
-)
+COLLECTION_NAME = "myCollection"
 
-qdrantVecSt = QdrantVectorStore.from_documents(
+if not client.collection_exists(collection_name=COLLECTION_NAME):
+    client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=VectorParams(
+            size=1024,
+            distance=Distance.COSINE
+        )
+    )
+
+
+qdrantVecSt = QdrantVectorStore(
     client = client,
-    collection_name = "myCollection",
+    collection_name = COLLECTION_NAME,
     embedding=embeddings
 )
 
-def addDoc(docs):
+def addDoc(docs,qdarantVecSt=qdrantVecSt):
     qdrantVecSt.add_documents(docs)
     return
 
 
-def retriveEmbed(text):
+def retriveEmbed(text,qdarantVecSt=qdrantVecSt):
     retrieval = qdrantVecSt.as_retriever()
     result = retrieval.invoke(text)
     return result 

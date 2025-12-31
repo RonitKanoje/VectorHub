@@ -10,7 +10,7 @@ def transcript(video_id):
         fetched = ytt_api.fetch(video_id)
         return fetched
     except Exception as e:
-        return e
+        raise e
 
 ### do error handling here in future
 def ytt_vid(video_id):
@@ -22,5 +22,5 @@ def ytt_vid(video_id):
 if __name__ == "__main__":
     docs = ytt_vid("vMGRbgXUEBQ")
 
-    with open("docs.json", "w", encoding="utf-8") as f:
+    with open("docs2.json", "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=2)

@@ -1,5 +1,5 @@
 from langchain_core.documents import Document
-from ytBackend.app import ytt_vid
+from backend.ytBackend.app import ytt_vid
 import json
 
 def cluster(chunks, group_size=7):

@@ -1,6 +1,8 @@
 from langchain_core.messages import SystemMessage,BaseMessage
 import psycopg
-from langchain_core.tools import tool,DuckDuckGoSearchResults,WikipediaQueryRun
+from langchain_core.tools import tool
+from langchain_community.tools import DuckDuckGoSearchResults
+from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
 from langgraph.graph import START,StateGraph
 from langgraph.graph.message import add_messages
@@ -11,7 +13,7 @@ from dotenv import load_dotenv
 from langsmith import traceable
 from langgraph.checkpoint.postgres import PostgresSaver
 import os
-from backend.embeddings import retriveEmbed
+from backend.main import main
 
 load_dotenv()
 
@@ -24,13 +26,13 @@ def chatNode(state:ChatState):
 
     system_mesasge = SystemMessage(
         content=(
-            "You are a helpful assistant"
+            "You are a helpful assistant that helps users in finding information if user asks anything related to the rag you have to use the tools to find the information. If user asks anything unrelated to the rag you have to politely refuse to answer that query. and you have to always provide source link for the information you provide.You can also use the tools to find information from the web or wikipedia. If you use any tool you have to mention that in your response."
         )
     )
     # messages = [system_mesasge,*state["messages"]]
-    messages = [system_mesasge]   #### see you havn't added user message here yet
+    messages = [system_mesasge  + state["messages"]]
     response = llmWithTools.invoke(messages)
-    return response
+    return {"messages": state["messages"] + [response]}
 
 ## Tools
 ddgo = DuckDuckGoSearchResults(region = "us-en")
@@ -43,11 +45,17 @@ wiki_tool = WikipediaQueryRun(
 )
 
 def tool_node(query):
-    """" Retrieve most relevant document from the retrieval"""
+    """" Retrieve most relevant document from the retrieval system ."""
 
-    result = retriveEmbed.invoke(query)
-    print(result)
-    ### see in which format you are getting the data then return 
+    result = main("vMGRbgXUEBQ",query)
+
+    context = [pageCont for pageCont in result.page_content]
+    meta = [metaData for metaData in result.metadata]
+
+    return {
+        "context": context,
+        "meta": meta
+    }
 
 
 tools = [ddgo,tool_node,wiki_tool]
@@ -59,6 +67,7 @@ conn = psycopg.connect(
 )
 checkpointer = PostgresSaver(conn=conn)
 
+checkpointer.setup()
 
 
 graph = StateGraph(ChatState)
@@ -70,10 +79,23 @@ graph.add_conditional_edges(chatNode,tool_node)
 graph.add_edge(tool_node,chatNode)
 
 
-def retrieve_all_threads():
-    allThreads = set()
-    for checkpoint in checkpointer.list(None):
-        allThreads.add(
-            checkpoint.config["configurable"]["thread_id"]
-        )
-    return list(allThreads)
+# def retrieve_all_threads():
+#     allThreads = set()
+#     for checkpoint in checkpointer.list(None):
+#         allThreads.add(
+#             checkpoint.config["configurable"]["thread_id"]
+#         )
+#     return list(allThreads)
+
+if __name__ == "__main__":
+    CONFIG = {
+        "configurable": {
+            "thread_id": "test_thread_1"
+        }
+    }
+    workflow = graph.compile(checkpointer=checkpointer,config=CONFIG)
+    intial_state = {
+        "messages" : "Where company database is discussed in this viseo"
+    }
+    result = workflow.invoke(intial_state)
+    print(result["messages"][-1].content)
