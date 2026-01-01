@@ -1,38 +1,34 @@
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
 from qdrant_client.http.models import VectorParams,Distance
+from backend.vectorStore import qdrantVecSt,COLLECTION_NAME
+from qdrant_client import QdrantClient
 
-embeddings = OllamaEmbeddings(
-    model= "bge-m3"
-)
 
-client = QdrantClient(url="http://localhost:6333")
+def collection_has_vectors(client: QdrantClient, collection_name: str) -> bool:
+    info = client.get_collection(collection_name)
+    return info.points_count > 0
 
-COLLECTION_NAME = "myCollection"
+def create_collection_if_not_exists(client: QdrantClient, collection_name: str,docs : list):
 
-if not client.collection_exists(collection_name=COLLECTION_NAME):
-    client.create_collection(
-        collection_name=COLLECTION_NAME,
-        vectors_config=VectorParams(
-            size=1024,
-            distance=Distance.COSINE
+    if not client.collection_exists(collection_name=collection_name):
+        client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(
+                size=1024,
+                distance=Distance.COSINE
+            )
         )
-    )
+        qdrantVecSt.add_documents(docs)
+
+    else:
+        if not collection_has_vectors(client, collection_name):
+            qdrantVecSt.add_documents(docs)
+        else:
+            print("Embedding already exists in the collection.")
+
+    return qdrantVecSt
 
 
-qdrantVecSt = QdrantVectorStore(
-    client = client,
-    collection_name = COLLECTION_NAME,
-    embedding=embeddings
-)
-
-def addDoc(docs,qdarantVecSt=qdrantVecSt):
-    qdrantVecSt.add_documents(docs)
-    return
-
-
-def retriveEmbed(text,qdarantVecSt=qdrantVecSt):
+def retrieveEmbed(text,qdrantVecSt=qdrantVecSt):
     retrieval = qdrantVecSt.as_retriever()
     result = retrieval.invoke(text)
     return result 
