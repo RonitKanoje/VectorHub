@@ -4,8 +4,11 @@ import whisper
 import torch
 import json
 import os
+from langsmith import traceable
+
 
 ## converting video into audio
+@traceable(name = "Video to Audio Conversion")
 def vidToAud(vidAdd):
     os.makedirs("audios", exist_ok=True)  
 
@@ -14,7 +17,7 @@ def vidToAud(vidAdd):
     return
 
 ## Converting audio to chunks
-
+@traceable(name = "Audio to Chunks Conversion")
 def addToChunk(audioAdd):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(device)
@@ -26,10 +29,15 @@ def addToChunk(audioAdd):
     count = 1
     for audio in audios:
         result = model.transcribe(audio=f"backend/videobackend/audios/{audio}",language="hi",task = "translate")
-        print(result)
-
-    
-
+        for segment in result['segments']:
+            chunks.append({
+                'video_no.' : count,
+                'text' : segment['text'],
+                'start' : segment['start'],
+                'duratiom' : segment['end'] - segment['start']
+            })
+        count += 1
+    return chunks
 
 if __name__ == "__main__":
     # vidToAud(

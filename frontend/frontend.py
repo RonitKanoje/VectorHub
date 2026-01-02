@@ -7,7 +7,6 @@ from chatbot.chatbot import chatBot
 
 st.title("Welcome to Q&A Chatbot")
 
-
 ### Defining Function 
 def generate_thread_id():
     return str(uuid.uuid4())
@@ -79,6 +78,7 @@ if st.session_state.mode == "youtube":
             st.error("Please enter a YouTube link")
         else:
             video_id = lnk.split("=")[-1]
+            st.session_state.submit = True 
             main(video_id,"youtube",st.session_state.thread_id)
             st.success("Video ID extracted")
             st.write(video_id)
@@ -96,6 +96,7 @@ if st.session_state.mode == "video":
             st.error("Please upload at least one video")
         else:
             main(upload_files,"video",st.session_state.thread_id)
+            st.session_state.submit = True 
             st.success(f"{len(upload_files)} video(s) uploaded")
 
 # Audio Summarizer 
@@ -111,6 +112,7 @@ if st.session_state.mode == "audio":
             st.error("Please upload at least one audio file")
         else:
             main(upload_files,"audio",st.session_state.thread_id)
+            st.session_state.submit = True 
             st.success(f"{len(upload_files)} audio file(s) uploaded ")
 
 #Text Summarizer 
@@ -122,13 +124,18 @@ if st.session_state.mode == "text":
             st.error("Please enter some text")
         else:
             main(text_input,"text",st.session_state.thread_id)
+            st.session_state.submit = True 
             st.success("Text received")
 
 
-
-
-
-
+## Main UI
+for msg in st.session_state.message_history:
+    if msg["role"] == "user":
+        with st.chat_message("user"):
+            st.markdown(msg["content"])
+    else:
+        with st.chat_message("assistant"):
+            st.markdown(msg["content"])
 
 ### Slider Bar for Chat History
 st.sidebar.title("Chat History")
@@ -175,7 +182,7 @@ if st.session_state.submit == True:
                 config=CONFIG
             )["messages"][-1].content
             # Update the placeholder with the actual response
-            response_placeholder.markdown(assistant_response)
+            response_placeholder.markdown(assistant_response)  
 
         # Append assistant response to message history
-        st.session_state.message_history.append({"role": "assistant", "content": assistant_response})
+        st.session_state.message_history.append({"role": "assistant", "content": assistant_response})   

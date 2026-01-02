@@ -13,9 +13,10 @@ from typing_extensions import TypedDict
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langsmith import traceable
-from langgraph.checkpoint.postgres import PostgresSaver
 import os
 from backend.main import retrieve_answer
+import requests
+
 
 load_dotenv()
 
@@ -28,7 +29,7 @@ def chatNode(state:ChatState):
 
     system_mesasge = SystemMessage(
         content=(
-            "You are a helpful assistant that helps users in finding information if user asks anything related to the rag you have to use the tools to find the information. If user asks anything unrelated to the rag you have to politely refuse to answer that query. and you have to always provide source link for the information you provide.You can also use the tools to find information from the web or wikipedia. If you use any tool you have to mention that in your response.   Use rag context to answer the user's question.  first try to find the answer from the rag context if you don't find it then use the tools to find the answer."
+            
         )
     )
     messages = [system_mesasge,*state["messages"]]
@@ -46,6 +47,7 @@ wiki_tool = WikipediaQueryRun(
 )
 
 @tool
+@traceable(name = "RAG Tool")
 def rag_node(query: str) -> dict:
     """" Retrieve most relevant document from the retrieval system ."""
 
@@ -67,34 +69,24 @@ tool_node = ToolNode(tools)
 llmWithTools = llm.bind_tools(tools)
 
 
-conn = psycopg.connect(
-    host="localhost",
-    port=5432,
-    dbname= os.getenv("DB_NAME"),
-    user=os.getenv("DB_USER"),
-    password=os.getenv("DB_PASSWORD")
-)
+# Checkpointer to save and load conversation states
+# chatbot/chatbot.py
 
-conn.autocommit = True
+def build_chatbot(checkpointer):
+    graph = StateGraph(ChatState)
 
-checkpointer = PostgresSaver(conn=conn)
+    graph.add_node("chatNode", chatNode)
+    graph.add_node("tools", tool_node)
 
-checkpointer.setup()
+    graph.add_edge(START, "chatNode")
+    graph.add_conditional_edges("chatNode", tools_condition)
+    graph.add_edge("tools", "chatNode")
 
+    return graph.compile(checkpointer=checkpointer)
 
-graph = StateGraph(ChatState)
-graph.add_node("chatNode",chatNode)
-graph.add_node("tools",tool_node)
-
-graph.add_edge(START,"chatNode")
-graph.add_conditional_edges("chatNode",tools_condition)
-graph.add_edge("tools","chatNode")
-
-
-chatBot = graph.compile(checkpointer=checkpointer)
 
 #Defining functions to retrieve all threads and load conversation
-def retrieve_all_threads():
+def retrieve_all_threads(checkpointer):
     allThreads = set()
     for checkpoint in checkpointer.list(None):
         allThreads.add(
@@ -102,7 +94,7 @@ def retrieve_all_threads():
         )
     return list(allThreads)
 
-def loadConv(thread_id):
+def loadConv(chatBot ,thread_id):
     state = chatBot.get_state(
         config={
             "configurable": {
@@ -111,25 +103,5 @@ def loadConv(thread_id):
         })
     return state.values.get("messages", [])
 
-
-if __name__ == "__main__":
-    CONFIG = {
-        "configurable": {
-            "thread_id": "test_thread_2"
-        }
-    }
-    
-
-    initial_state = {
-    "messages": [HumanMessage(content="Where company database is discussed in this video use rag to find the answer.") ]
-    }
-    workflow = graph.compile(checkpointer=checkpointer)
-    result = workflow.invoke(
-    initial_state,
-    config={
-        "configurable": {
-            "thread_id": "test_thread_3"
-            }
-        }
-    )
-    print(result["messages"][-1].content)
+if __name__ == '__main__':
+    pass

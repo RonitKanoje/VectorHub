@@ -1,11 +1,12 @@
 from backend.ytBackend.app import ytt_vid
 from backend.processing_chunks import convDoc
-from backend.embeddings import retrieveEmbed,create_collection_if_not_exists,qdrantVecSt
+from langsmith import traceable
+from database.qdrant.embeddingsStore import retrieveEmbed,create_collection_if_not_exists,qdrantVecSt
 from backend.videobackend.process_video import addToChunk,vidToAud
 
 import json
 
-
+@traceable(name = "Main Processing")
 def main(path,media,thread_id):
     if media == "youtube":
         chunks = ytt_vid(path)
@@ -21,6 +22,7 @@ def main(path,media,thread_id):
     create_collection_if_not_exists(qdrantVecSt.client, f"{thread_id}", processChunks)
     return 
 
+@traceable(name = "Retrieve Answer")
 def retrieve_answer(query):
     result = retrieveEmbed(query,qdrantVecSt)
     return result

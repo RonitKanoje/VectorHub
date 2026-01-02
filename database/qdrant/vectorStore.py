@@ -7,7 +7,6 @@ embeddings = OllamaEmbeddings(
 )
 
 # Initialize Qdrant client and vector store
-
 client = QdrantClient(url="http://localhost:6333")
 
 COLLECTION_NAME = "myCollection"

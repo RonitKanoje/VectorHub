@@ -1,7 +1,9 @@
 from langchain_core.documents import Document
 from backend.ytBackend.app import ytt_vid
+from langsmith import traceable
 import json
 
+@traceable(name = "Clustering Chunks")
 def cluster(chunks, group_size=7):
     clustered = []
 
