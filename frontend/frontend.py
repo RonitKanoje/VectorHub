@@ -115,7 +115,7 @@ if st.session_state.mode == "youtube":
 if st.session_state.mode == "video":
     upload_files = st.file_uploader(
         "Choose video files",
-        type=["mp4"],
+        type="mp4",
         accept_multiple_files=True
     )
 
@@ -125,7 +125,7 @@ if st.session_state.mode == "video":
         else:
             # main(upload_files,"video",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
-                "path": [f.name for f in upload_files],
+                "path": upload_files,
                 "media": "video",
                 "thread_id": st.session_state.thread_id
             })
@@ -136,7 +136,7 @@ if st.session_state.mode == "video":
 if st.session_state.mode == "audio":
     upload_files = st.file_uploader(
         "Choose audio files",
-        type=["mp3"],
+        type="mp3",
         accept_multiple_files=True
     )
 
@@ -162,7 +162,7 @@ if st.session_state.mode == "text":
         else:
             #main(text_input,"text",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
-                "path": [text_input],
+                "path": text_input,
                 "media": "text",
                 "thread_id": st.session_state.thread_id
             })
@@ -201,10 +201,9 @@ for thread in st.session_state.chat_threads:
         st.session_state.message_history = tempMsg
 
 ### Chat Interface
+### Chat Interface
 if st.session_state.submit == True:
     user_input = st.chat_input("Type your message here...")
-
-    
 
     if user_input:
         st.session_state.message_history.append({"role": "user", "content": user_input})
@@ -222,15 +221,44 @@ if st.session_state.submit == True:
             # Simulate thinking process
             response_placeholder.markdown("...thinking...")
 
-
-        # Get assistant response from chatbot
-            assistant_response = requests.post(os.getenv("FASTAPI_CHAT_URL"), json={
-                "role": "user",
-                "content": user_input,
-                "thread_id": st.session_state.thread_id
-            }).json()["response"]
-            # Update the placeholder with the actual response
-            response_placeholder.markdown(assistant_response)  
-
-        # Append assistant response to message history
-        st.session_state.message_history.append({"role": "assistant", "content": assistant_response})   
+            try:
+                # Get assistant response from chatbot
+                response = requests.post(
+                    os.getenv("FASTAPI_CHAT_URL"), 
+                    json={
+                        "role": "user",
+                        "content": user_input,
+                        "thread_id": st.session_state.thread_id
+                    },
+                    timeout=240  # Add timeout
+                )
+                
+                # Check if request was successful
+                response.raise_for_status()
+                
+                # Try to parse JSON
+                assistant_response = response.json()["response"]
+                
+                # Update the placeholder with the actual response
+                response_placeholder.markdown(assistant_response)
+                
+                # Append assistant response to message history
+                st.session_state.message_history.append({
+                    "role": "assistant", 
+                    "content": assistant_response
+                })
+                
+            except requests.exceptions.JSONDecodeError:
+                error_msg = f"❌ **Error**: Server returned invalid response\n\n```\n{response.text[:500]}\n```"
+                response_placeholder.markdown(error_msg)
+                st.error(f"Response status: {response.status_code}")
+                
+            except requests.exceptions.HTTPError as e:
+                response_placeholder.markdown(f"❌ **HTTP Error**: {e}")
+                st.error(f"Status code: {response.status_code}")
+                
+            # except requests.exceptions.Timeout:
+            #     response_placeholder.markdown("❌ **Error**: Request timed out")
+                
+            except requests.exceptions.RequestException as e:
+                response_placeholder.markdown(f"❌ **Error**: {str(e)}")

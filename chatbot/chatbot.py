@@ -4,7 +4,7 @@ from langchain_core.tools import tool
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
-from langgraph.graph import START,StateGraph
+from langgraph.graph import START,StateGraph,END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode,tools_condition
 from langchain_ollama import ChatOllama
@@ -23,17 +23,35 @@ load_dotenv()
 llm = ChatOllama(model = "llama3.2",temperature=0)
 
 class ChatState(TypedDict):
-    messages : Annotated[list[BaseMessage],add_messages]
-    thread_id : str
+    messages: Annotated[list[BaseMessage], add_messages]
+    thread_id: str
+    context: list[str]
+    meta: list[dict]
 
 
 def chatNode(state: ChatState):
     messages = state["messages"]
+    context = state.get("context", [])
 
-    if not messages or not isinstance(messages[0], SystemMessage):
-        system_message = SystemMessage(
-            content=prompt1.format()
+    context_text = "\n\n".join(context) if context else "No relevant context found."
+
+    system_message = SystemMessage(
+        content=f"""
+    You are a helpful assistant.
+
+    Answer the user's question using ONLY the context below.
+
+    Context:
+    {context_text}
+
+    If the answer is not in the context, say you don't know.
+    """
         )
+
+    # Replace or insert system message
+    if messages and isinstance(messages[0], SystemMessage):
+        messages = [system_message] + messages[1:]
+    else:
         messages = [system_message] + messages
 
     response = llmWithTools.invoke(messages)
@@ -41,6 +59,7 @@ def chatNode(state: ChatState):
     return {
         "messages": messages + [response]
     }
+
 
 ## Tools
 ddgo = DuckDuckGoSearchResults(region = "us-en")
@@ -52,12 +71,12 @@ wiki_tool = WikipediaQueryRun(
     )
 )
 
-@tool
 @traceable(name = "RAG Tool")
-def rag_node(state : ChatState,query: str) -> dict:
+def rag_node(state : ChatState) -> dict:
     """" Retrieve most relevant document from the retrieval system ."""
 
     thread_id = state["thread_id"]
+    query = state["messages"][-1].content
 
     result = retrieve_answer(query, thread_id=thread_id)
 
@@ -69,7 +88,7 @@ def rag_node(state : ChatState,query: str) -> dict:
         "meta": metadata
     }
 
-tools = [rag_node]
+tools = []
 llmWithTools = llm.bind_tools(tools)
 tool_node = ToolNode(tools)
 
@@ -84,11 +103,14 @@ def build_chatbot(checkpointer):
     graph = StateGraph(ChatState)
 
     graph.add_node("chatNode", chatNode)
+    graph.add_node("ragNode", rag_node)
     graph.add_node("tools", tool_node)
 
-    graph.add_edge(START, "chatNode")
-    graph.add_conditional_edges("chatNode", tools_condition)
-    graph.add_edge("tools", "chatNode")
+    graph.add_edge(START, "ragNode")
+    graph.add_edge("ragNode", "chatNode")
+    # graph.add_conditional_edges("ragNode", tools_condition)
+    # graph.add_edge("tools", "chatNode")
+    graph.add_edge("chatNode", END)
 
     return graph.compile(checkpointer=checkpointer)
 
