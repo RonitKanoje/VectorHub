@@ -2,8 +2,9 @@ import streamlit as st
 import uuid
 from chatbot.chatbot import retrieve_all_threads,loadConv
 from langchain_core.messages import HumanMessage
-from backend.main import main
-from chatbot.chatbot import chatBot
+from backend.main import main       
+import requests
+import os 
 
 st.title("Welcome to Q&A Chatbot")
 
@@ -24,6 +25,19 @@ def loadChat(thread_id):
     messages = loadConv(thread_id)
     return messages
 
+def wait_until_ready(thread_id):
+    with st.spinner("Processing your documents..."):
+        while True:
+            res = requests.get(f"{API_BASE_URL}/thread_status/{thread_id}")
+
+            if res.status_code != "completed":
+                st.error("Error checking thread status")
+
+            status = res.json()["status"]
+
+            if status == "completed":
+                break
+
 
 # Session state 
 if 'message_history' not in st.session_state:
@@ -32,8 +46,16 @@ if 'message_history' not in st.session_state:
 if 'thread_id' not in st.session_state:
     st.session_state.thread_id = generate_thread_id()
 
-if 'chat_threads' not in st.session_state:
-    st.session_state.chat_threads = retrieve_all_threads()
+API_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
+
+if "chat_threads" not in st.session_state:
+    response = requests.get(f"{API_BASE_URL}/threads")
+
+    if response.status_code == 200:
+        st.session_state.chat_threads = response.json()["threads"]
+    else:
+        st.session_state.chat_threads = []
+        st.error("Failed to load chat threads")
 
 if "mode" not in st.session_state:
     st.session_state.mode = None
@@ -79,9 +101,15 @@ if st.session_state.mode == "youtube":
         else:
             video_id = lnk.split("=")[-1]
             st.session_state.submit = True 
-            main(video_id,"youtube",st.session_state.thread_id)
+            #main(video_id,"youtube",st.session_state.thread_id)
+            requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
+                "path": video_id,
+                "media": "youtube",
+                "thread_id": st.session_state.thread_id
+            })
             st.success("Video ID extracted")
             st.write(video_id)
+            st.write(st.session_state.thread_id)
 
 # Video Summarizer 
 if st.session_state.mode == "video":
@@ -95,7 +123,12 @@ if st.session_state.mode == "video":
         if not upload_files:
             st.error("Please upload at least one video")
         else:
-            main(upload_files,"video",st.session_state.thread_id)
+            # main(upload_files,"video",st.session_state.thread_id)
+            requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
+                "path": [f.name for f in upload_files],
+                "media": "video",
+                "thread_id": st.session_state.thread_id
+            })
             st.session_state.submit = True 
             st.success(f"{len(upload_files)} video(s) uploaded")
 
@@ -111,7 +144,11 @@ if st.session_state.mode == "audio":
         if not upload_files:
             st.error("Please upload at least one audio file")
         else:
-            main(upload_files,"audio",st.session_state.thread_id)
+            requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
+                "path": [f.name for f in upload_files],
+                "media": "audio",
+                "thread_id": st.session_state.thread_id
+            })
             st.session_state.submit = True 
             st.success(f"{len(upload_files)} audio file(s) uploaded ")
 
@@ -123,9 +160,15 @@ if st.session_state.mode == "text":
         if not text_input.strip():
             st.error("Please enter some text")
         else:
-            main(text_input,"text",st.session_state.thread_id)
+            #main(text_input,"text",st.session_state.thread_id)
+            requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
+                "path": [text_input],
+                "media": "text",
+                "thread_id": st.session_state.thread_id
+            })
             st.session_state.submit = True 
             st.success("Text received")
+
 
 
 ## Main UI
@@ -161,12 +204,16 @@ for thread in st.session_state.chat_threads:
 if st.session_state.submit == True:
     user_input = st.chat_input("Type your message here...")
 
+    
+
     if user_input:
         st.session_state.message_history.append({"role": "user", "content": user_input})
 
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(user_input)
+
+        wait_until_ready(st.session_state.thread_id)
 
         # Placeholder for assistant response
         with st.chat_message("assistant"):
@@ -175,12 +222,13 @@ if st.session_state.submit == True:
             # Simulate thinking process
             response_placeholder.markdown("...thinking...")
 
-            # Here you would integrate the chatbot response generation
-            # For demonstration, we will just echo the user input
-            assistant_response = chatBot.invoke(
-                {"messages": [HumanMessage(content=user_input)]},
-                config=CONFIG
-            )["messages"][-1].content
+
+        # Get assistant response from chatbot
+            assistant_response = requests.post(os.getenv("FASTAPI_CHAT_URL"), json={
+                "role": "user",
+                "content": user_input,
+                "thread_id": st.session_state.thread_id
+            }).json()["response"]
             # Update the placeholder with the actual response
             response_placeholder.markdown(assistant_response)  
 

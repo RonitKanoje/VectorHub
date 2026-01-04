@@ -16,7 +16,7 @@ from langsmith import traceable
 import os
 from backend.main import retrieve_answer
 import requests
-
+from chatbot.prompt import prompt1
 
 load_dotenv()
 
@@ -24,17 +24,23 @@ llm = ChatOllama(model = "llama3.2",temperature=0)
 
 class ChatState(TypedDict):
     messages : Annotated[list[BaseMessage],add_messages]
+    thread_id : str
 
-def chatNode(state:ChatState):
 
-    system_mesasge = SystemMessage(
-        content=(
-            
+def chatNode(state: ChatState):
+    messages = state["messages"]
+
+    if not messages or not isinstance(messages[0], SystemMessage):
+        system_message = SystemMessage(
+            content=prompt1.format()
         )
-    )
-    messages = [system_mesasge,*state["messages"]]
+        messages = [system_message] + messages
+
     response = llmWithTools.invoke(messages)
-    return {"messages": state["messages"] + [response]}
+
+    return {
+        "messages": messages + [response]
+    }
 
 ## Tools
 ddgo = DuckDuckGoSearchResults(region = "us-en")
@@ -48,10 +54,12 @@ wiki_tool = WikipediaQueryRun(
 
 @tool
 @traceable(name = "RAG Tool")
-def rag_node(query: str) -> dict:
+def rag_node(state : ChatState,query: str) -> dict:
     """" Retrieve most relevant document from the retrieval system ."""
 
-    result = retrieve_answer(query)
+    thread_id = state["thread_id"]
+
+    result = retrieve_answer(query, thread_id=thread_id)
 
     contexts = [doc.page_content for doc in result]
     metadata = [doc.metadata for doc in result]

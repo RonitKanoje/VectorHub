@@ -1,10 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from api.schemas import processMedia
 from database.postgres.checkpointer import get_checkpointer
 from langchain_core.messages import HumanMessage
 from chatbot.chatbot import retrieve_all_threads, loadConv
 import json
 from backend.main import main
 from chatbot.chatbot import build_chatbot
+from api.schemas import processMedia,chatMessage
+from backend.status import redis_client
+from database.qdrant.vectorStore import create_vector_store
+from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -16,21 +21,53 @@ async def read_root():
 def startup():
     app.state.checkpointer = get_checkpointer()
     app.state.chatbot = build_chatbot(app.state.checkpointer)
+    try:
+        redis_client.ping()
+        print("Connected to Redis successfully!")
+    except Exception as e:
+        print("Failed to connect to Redis:", e)
+
+
+from fastapi import HTTPException
 
 @app.post("/chat")
-async def chat(payload: dict):
+async def chat(chatMessage: chatMessage):
     chatbot = app.state.chatbot
 
-    result = chatbot.invoke(
-        {"messages": [HumanMessage(content=payload["message"])]},
-        config={
-            "configurable": {
-                "thread_id": payload["thread_id"]
-            }
-        }
-    )
+    status = redis_client.get(chatMessage.thread_id)
 
-    return {"response": result["messages"][-1].content}
+    if not status:
+        raise HTTPException(
+            status_code=404,
+            detail="invalid_thread_id"
+        )
+
+    if status.decode() != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail=f"thread_not_ready ({status.decode()})"
+        )
+
+    try:
+        result = chatbot.invoke(
+            {
+                "messages": [HumanMessage(content=chatMessage.content)],
+                "thread_id": chatMessage.thread_id
+            },
+            config={
+                "configurable": {
+                    "thread_id": chatMessage.thread_id
+                }
+            }
+        )
+
+        return {"response": result["messages"][-1].content}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 
 @app.get("/threads")
@@ -45,11 +82,54 @@ async def load_chat(thread_id: str):
     messages = loadConv(chatbot, thread_id)
     return {"messages": [msg.dict() for msg in messages]}
 
-##main(video_id,"youtube",st.session_state.thread_id)
 @app.post("/process_media")
-async def process_media(payload: dict):
-    path = payload["path"]
-    media = payload["media"]
-    thread_id = payload["thread_id"]
-    await main(path, media, thread_id)
-    return {"status": "Processing started"}
+async def process_media(process_media: processMedia,background_tasks: BackgroundTasks):
+    redis_client.set(process_media.thread_id, "queued")
+    background_tasks.add_task(main,
+                            process_media.path,
+                            process_media.media,
+                            process_media.thread_id
+                            )
+    return  {"status": "Processing started"}
+
+@app.get("/ingestion_status/{thread_id}")
+def ingestion_status(thread_id: str):
+    try:
+        status = redis_client.get(thread_id)
+        if status is None:
+            return {"status": "invalid_thread_id"}
+        return {"status": status or "not_found"}
+    except Exception as e:
+        return {
+            "status": "redis_error",
+            "detail": str(e)
+        }
+
+
+@app.get("/thread_status/{thread_id}")
+def thread_status(thread_id: str):
+    try:
+        status = redis_client.get(thread_id)
+
+        if not status:
+            raise HTTPException(
+                status_code=404,
+                detail="invalid_thread_id"
+            )
+
+        # Handle both bytes and str responses
+        if isinstance(status, bytes):
+            status = status.decode()
+
+        return {
+            "status": status
+        }
+
+    except HTTPException:
+        raise  # re-raise cleanly
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"redis_error: {str(e)}"
+        )

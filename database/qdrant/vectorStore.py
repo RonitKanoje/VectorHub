@@ -9,10 +9,9 @@ embeddings = OllamaEmbeddings(
 # Initialize Qdrant client and vector store
 client = QdrantClient(url="http://localhost:6333")
 
-COLLECTION_NAME = "myCollection"
-
-qdrantVecSt = QdrantVectorStore(
-    client = client,
-    collection_name = COLLECTION_NAME,
-    embedding=embeddings
-)
+def create_vector_store(collection_name: str) -> QdrantVectorStore:
+    return QdrantVectorStore(
+        client=client,
+        collection_name=collection_name,
+        embedding=embeddings
+    )    
