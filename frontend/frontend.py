@@ -113,44 +113,44 @@ if st.session_state.mode == "youtube":
 
 # Video Summarizer 
 if st.session_state.mode == "video":
-    upload_files = st.file_uploader(
+    upload_file = st.file_uploader(
         "Choose video files",
         type="mp4",
-        accept_multiple_files=True
+        accept_multiple_files=False
     )
 
     if st.button("Submit"):
-        if not upload_files:
+        if not upload_file:
             st.error("Please upload at least one video")
         else:
             # main(upload_files,"video",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
-                "path": upload_files,
+                "path": upload_file,
                 "media": "video",
                 "thread_id": st.session_state.thread_id
             })
             st.session_state.submit = True 
-            st.success(f"{len(upload_files)} video(s) uploaded")
+            st.success(f"{len(upload_file)} video(s) uploaded")
 
 # Audio Summarizer 
 if st.session_state.mode == "audio":
-    upload_files = st.file_uploader(
+    upload_file = st.file_uploader(
         "Choose audio files",
         type="mp3",
-        accept_multiple_files=True
+        accept_multiple_files=False
     )
 
     if st.button("Submit"):
-        if not upload_files:
+        if not upload_file:
             st.error("Please upload at least one audio file")
         else:
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
-                "path": [f.name for f in upload_files],
+                "path": upload_file,
                 "media": "audio",
                 "thread_id": st.session_state.thread_id
             })
             st.session_state.submit = True 
-            st.success(f"{len(upload_files)} audio file(s) uploaded ")
+            st.success(f"{len(upload_file)} audio file(s) uploaded ")
 
 #Text Summarizer 
 if st.session_state.mode == "text":
@@ -168,8 +168,6 @@ if st.session_state.mode == "text":
             })
             st.session_state.submit = True 
             st.success("Text received")
-
-
 
 ## Main UI
 for msg in st.session_state.message_history:
@@ -200,7 +198,6 @@ for thread in st.session_state.chat_threads:
                 tempMsg.append(({"role": "assistant", "content": msg.content}))
         st.session_state.message_history = tempMsg
 
-### Chat Interface
 ### Chat Interface
 if st.session_state.submit == True:
     user_input = st.chat_input("Type your message here...")
@@ -249,16 +246,16 @@ if st.session_state.submit == True:
                 })
                 
             except requests.exceptions.JSONDecodeError:
-                error_msg = f"❌ **Error**: Server returned invalid response\n\n```\n{response.text[:500]}\n```"
+                error_msg = f"**Error**: Server returned invalid response\n\n```\n{response.text[:500]}\n```"
                 response_placeholder.markdown(error_msg)
                 st.error(f"Response status: {response.status_code}")
                 
             except requests.exceptions.HTTPError as e:
-                response_placeholder.markdown(f"❌ **HTTP Error**: {e}")
+                response_placeholder.markdown(f"**HTTP Error**: {e}")
                 st.error(f"Status code: {response.status_code}")
                 
-            # except requests.exceptions.Timeout:
-            #     response_placeholder.markdown("❌ **Error**: Request timed out")
+            except requests.exceptions.Timeout:
+                response_placeholder.markdown("**Error**: Request timed out")
                 
             except requests.exceptions.RequestException as e:
-                response_placeholder.markdown(f"❌ **Error**: {str(e)}")
+                response_placeholder.markdown(f"**Error**: {str(e)}")
