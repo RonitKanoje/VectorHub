@@ -98,7 +98,8 @@ async def process_media(process_media: processMedia,background_tasks: Background
     background_tasks.add_task(main,
                             process_media.path,
                             process_media.media,
-                            process_media.thread_id
+                            process_media.thread_id,
+                            process_media.language
                             )
     return  {"status": "Processing started"}
 

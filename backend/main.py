@@ -9,7 +9,7 @@ import json
 from database.qdrant.retrieveEmbeddings import retrieveEmbed
 
 @traceable(name="Main Processing")
-def main(path, media, thread_id):
+def main(path, media, thread_id, language=None):
     try:
         redis_client.set(thread_id, "processing")
 
@@ -20,9 +20,8 @@ def main(path, media, thread_id):
         elif media == "text":
             processChunks = convDoc(path)
         elif media == "video":
-            aud = vidToAud(path)
-            chunks = addToChunk(aud)
-
+            aud = vidToAud(path,thread_id)
+            chunks = addToChunk(aud, language)
         if media != "text":
             processChunks = convDoc(chunks)
 
