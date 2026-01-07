@@ -1,10 +1,10 @@
 import streamlit as st
 import uuid
-from chatbot.chatbot import retrieve_all_threads,loadConv
 from langchain_core.messages import HumanMessage
 import requests
 import os 
 from frontend.languages import WHISPER_LANGUAGES
+import shutil
 
 st.title("Welcome to Q&A Chatbot")
 
@@ -22,8 +22,9 @@ def resetChat():
     addThread(st.session_state.thread_id)
 
 def loadChat(thread_id):
-    messages = loadConv(thread_id)
-    return messages
+    response = requests.get(f"{API_BASE_URL}/loadConv/{thread_id}")
+    response.raise_for_status()     
+    return response.json()['messages']
 
 def wait_until_ready(thread_id):
     with st.spinner("Processing your documents..."):
@@ -31,14 +32,21 @@ def wait_until_ready(thread_id):
             res = requests.get(f"{API_BASE_URL}/thread_status/{thread_id}")
 
             if res.status_code != "completed":
-                st.error("Error checking thread status")
+                st.error("Response is generating")
 
             status = res.json()["status"]
 
             if status == "completed":
                 if st.session_state.mode == "video":
-                    if os.path.exists(f"backend/videobackend/tmp/videos/{thread_id}_video.mp4"):
-                        os.remove(f"backend/videobackend/tmp/videos/{thread_id}_video.mp4")
+                    audio_dir = "backend/videobackend/tmp/audios"
+                    video_dir = "backend/videobackend/tmp/videos"
+
+                    if os.path.exists(audio_dir):
+                        shutil.rmtree(audio_dir)
+
+                    if os.path.exists(video_dir):
+                        shutil.rmtree(video_dir)
+
                 break
 
 
@@ -172,13 +180,12 @@ if st.session_state.mode == "audio":
 
 #Text Summarizer 
 if st.session_state.mode == "text":
-    text_input = st.text_area("Enter text to summarize")
+    text_input = st.text_area("Enter text For Q&A")
 
     if st.button("Submit"):
         if not text_input.strip():
             st.error("Please enter some text")
         else:
-            #main(text_input,"text",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": text_input,
                 "media": "text",
@@ -202,7 +209,7 @@ st.sidebar.title("Chat History")
 if st.sidebar.button("New Chat"):
     resetChat()
 
-for thread in st.session_state.chat_threads:
+for thread in st.session_state.chat_threads[::-1]:
     if st.sidebar.button(f"Chat {thread}"):
         st.session_state.thread_id = thread
         st.session_state.message_history = loadChat(thread)
@@ -210,10 +217,10 @@ for thread in st.session_state.chat_threads:
         tempMsg = []
 
         for msg in st.session_state.message_history:
-            if isinstance(msg, HumanMessage):
-                tempMsg.append(({"role": "user", "content": msg.content}))
+            if msg['type'] == 'human':
+                tempMsg.append(({"role": "user", "content": msg['content']}))
             else:
-                tempMsg.append(({"role": "assistant", "content": msg.content}))
+                tempMsg.append(({"role": "assistant", "content": msg['content']}))
         st.session_state.message_history = tempMsg
 
 ### Chat Interface

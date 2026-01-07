@@ -32,23 +32,22 @@ class ChatState(TypedDict):
 def chatNode(state: ChatState):
     messages = state["messages"]
     context = state.get("context", [])
+    meta = state.get("meta",[])
 
+    meta_data = "\n\n".join(str(m) for m in meta) if meta else "No relevant metadata found."
     context_text = "\n\n".join(context) if context else "No relevant context found."
 
+    base_prompt = prompt1.format()
+
     system_message = SystemMessage(
-        content=f"""
-    You are a helpful assistant.
+        content=f"""{base_prompt}
+        Context:
+        {context_text}
+        Metadata :
+        {meta_data}
+        """
+    )
 
-    Answer the user's question using ONLY the context below.
-
-    Context:
-    {context_text}
-
-    If the answer is not in the context, say you don't know.
-    """
-        )
-
-    # Replace or insert system message
     if messages and isinstance(messages[0], SystemMessage):
         messages = [system_message] + messages[1:]
     else:
@@ -88,16 +87,14 @@ def rag_node(state : ChatState) -> dict:
         "meta": metadata
     }
 
-tools = []
+tools = [ddgo,wiki_tool]
 llmWithTools = llm.bind_tools(tools)
 tool_node = ToolNode(tools)
 
 
 llmWithTools = llm.bind_tools(tools)
 
-
 # Checkpointer to save and load conversation states
-# chatbot/chatbot.py
 
 def build_chatbot(checkpointer):
     graph = StateGraph(ChatState)
@@ -108,9 +105,15 @@ def build_chatbot(checkpointer):
 
     graph.add_edge(START, "ragNode")
     graph.add_edge("ragNode", "chatNode")
-    # graph.add_conditional_edges("ragNode", tools_condition)
-    # graph.add_edge("tools", "chatNode")
-    graph.add_edge("chatNode", END)
+    graph.add_conditional_edges(
+        "chatNode",
+        tools_condition,
+        {
+            "tools": "tools",   # if tool is requested
+            END: END            # if no tool is needed
+        }
+    )
+    graph.add_edge('tools','chatNode')
 
     return graph.compile(checkpointer=checkpointer)
 

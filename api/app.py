@@ -11,6 +11,7 @@ from backend.status import redis_client
 from database.qdrant.vectorStore import create_vector_store
 from fastapi import HTTPException
 from langsmith import traceable
+from chatbot.chatbot import retrieve_all_threads, loadConv
 
 app = FastAPI()
 
@@ -144,3 +145,14 @@ def thread_status(thread_id: str):
             status_code=500,
             detail=f"redis_error: {str(e)}"
         )
+    
+# @app.get("/health")
+# def health_check():
+#     return {"status": "healthy"}    
+
+
+@app.get("/loadConv/{thread_id}")
+async def load_conversation(thread_id: str):
+    chatbot = app.state.chatbot
+    messages = loadConv(chatbot, thread_id)
+    return {"messages": [msg.dict() for msg in messages]}

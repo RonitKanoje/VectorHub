@@ -6,6 +6,7 @@ from langsmith import traceable
 from database.qdrant.embeddingsStore import create_collection_if_not_exists
 from database.qdrant.vectorStore import create_vector_store
 import json
+import os 
 from database.qdrant.retrieveEmbeddings import retrieveEmbed
 
 @traceable(name="Main Processing")
@@ -16,7 +17,15 @@ def main(path, media, thread_id, language=None):
         if media == "youtube":
             chunks = ytt_vid(path)
         elif media == "audio":
-            chunks = addToChunk(path)
+            audAdd = os.path.normpath(audAdd)
+    
+            # Build output path with proper separators
+            output_dir = os.path.join("backend", "videobackend", "tmp", "audios")
+            output_path = os.path.join(output_dir, f"{thread_id}.mp3")
+            
+            # Ensure output directory exists
+            os.makedirs(output_dir, exist_ok=True)
+            chunks = addToChunk(output_path,language)
         elif media == "text":
             processChunks = convDoc(path)
         elif media == "video":
