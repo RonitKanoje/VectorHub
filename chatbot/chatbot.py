@@ -34,17 +34,23 @@ def chatNode(state: ChatState):
     context = state.get("context", [])
     meta = state.get("meta",[])
 
-    meta_data = "\n\n".join(str(m) for m in meta) if meta else "No relevant metadata found."
+    meta_data = (
+    "\n".join(
+        f"- Mentioned at {m['start']}s (duration {m['duration']}s)"
+        for m in meta
+    )
+    if meta else "No timing metadata available."
+    )
+
     context_text = "\n\n".join(context) if context else "No relevant context found."
 
     base_prompt = prompt1.format()
 
     system_message = SystemMessage(
-        content=f"""{base_prompt}
-        Context:
-        {context_text}
-        Metadata :
-        {meta_data}
+        content=f"""
+        Context:{context_text}
+        Timing metadata (ONLY for 'when/where' questions):
+        Metadata :{meta_data}
         """
     )
 

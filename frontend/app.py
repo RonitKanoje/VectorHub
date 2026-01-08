@@ -32,7 +32,7 @@ def wait_until_ready(thread_id):
             res = requests.get(f"{API_BASE_URL}/thread_status/{thread_id}")
 
             if res.status_code != "completed":
-                st.error("Response is generating")
+                st.spinner("Response is generating")
 
             status = res.json()["status"]
 
@@ -193,6 +193,7 @@ if st.session_state.mode == "text":
             })
             st.session_state.submit = True 
             st.success("Text received")
+            st.write(st.session_state.thread_id)
 
 ## Main UI
 for msg in st.session_state.message_history:
@@ -210,7 +211,7 @@ if st.sidebar.button("New Chat"):
     resetChat()
 
 for thread in st.session_state.chat_threads[::-1]:
-    if st.sidebar.button(f"Chat {thread}"):
+    if st.sidebar.button(f"Chat Id {thread}"):
         st.session_state.thread_id = thread
         st.session_state.message_history = loadChat(thread)
 

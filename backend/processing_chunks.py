@@ -41,6 +41,26 @@ def convDoc(oldChunks):
     for chunk in chunks]
     return docs
 
+def txtChunkDoc(chunks):
+    if not chunks:
+        raise ValueError("txtChunkDoc received empty or None chunks")
+
+    docs = []
+
+    for chunk in chunks:
+        if not isinstance(chunk, str):
+            continue
+
+        if not chunk.strip():  
+            continue
+
+        docs.append(Document(page_content=chunk))
+
+    if not docs:
+        raise ValueError("No valid documents after filtering")
+
+    return docs
+
 if __name__ == "__main__":
     with open("docs.json", "r") as f:
         oldChunks = json.load(f)

@@ -1,6 +1,7 @@
 from backend.ytBackend.app import ytt_vid
-from backend.processing_chunks import convDoc
+from backend.processing_chunks import convDoc,txtChunkDoc
 from backend.videobackend.process_video import addToChunk, vidToAud
+from backend.textbackend.app import split
 from backend.status import redis_client
 from langsmith import traceable
 from database.qdrant.embeddingsStore import create_collection_if_not_exists
@@ -17,7 +18,6 @@ def main(path, media, thread_id, language=None):
         if media == "youtube":
             chunks = ytt_vid(path)
         elif media == "audio":
-            audAdd = os.path.normpath(audAdd)
     
             # Build output path with proper separators
             output_dir = os.path.join("backend", "videobackend", "tmp", "audios")
@@ -27,15 +27,25 @@ def main(path, media, thread_id, language=None):
             os.makedirs(output_dir, exist_ok=True)
             chunks = addToChunk(output_path,language)
         elif media == "text":
-            processChunks = convDoc(path)
+            chunks = split(path)
+            processChunks = txtChunkDoc(chunks)
+
+
+
         elif media == "video":
             aud = vidToAud(path,thread_id)
             chunks = addToChunk(aud, language)
+
+
         if media != "text":
             processChunks = convDoc(chunks)
 
         redis_client.set(thread_id, "creating_embeddings")
         collection_name = thread_id
+        print("TYPE:", type(chunks))
+        for i, chunk in enumerate(processChunks):
+            print(f"\n--- CHUNK {i} ---")
+            print(repr(chunk))
         vectorStore = create_collection_if_not_exists(collection_name, processChunks)   
 
 
