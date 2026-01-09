@@ -8,5 +8,6 @@ if not st.session_state.submitted:
     if st.button("Submit"):
         st.session_state.submitted = True
         st.write("Submitted!")
+        
 else:
     st.write("Input box removed")

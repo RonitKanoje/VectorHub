@@ -1,5 +1,6 @@
 ## Importing necessary libraries
 from youtube_transcript_api import YouTubeTranscriptApi
+from langsmith import traceable
 import json
 
 ### fetching the transcript 
@@ -13,6 +14,7 @@ def transcript(video_id):
         raise e
 
 ### do error handling here in future
+@traceable(name = "YouTube Transcript")
 def ytt_vid(video_id):
     trans = transcript(video_id)
     finalChunks = trans.to_raw_data()
