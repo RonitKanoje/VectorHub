@@ -46,20 +46,33 @@ def txtChunkDoc(chunks):
         raise ValueError("txtChunkDoc received empty or None chunks")
 
     docs = []
+    offset = 0
 
     for chunk in chunks:
         if not isinstance(chunk, str):
             continue
 
-        if not chunk.strip():  
+        chunk = chunk.strip()
+        if not chunk:
             continue
 
-        docs.append(Document(page_content=chunk))
+        docs.append(
+            Document(
+                page_content=chunk,
+                metadata={
+                    "start": offset,
+                    "duration": len(chunk.split())
+                }
+            )
+        )
+
+        offset += len(chunk.split())
 
     if not docs:
         raise ValueError("No valid documents after filtering")
 
     return docs
+
 
 if __name__ == "__main__":
     with open("docs.json", "r") as f:

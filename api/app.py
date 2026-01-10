@@ -56,7 +56,6 @@ async def chat(chatMessage: chatMessage):
         result = chatbot.invoke(
             {
                 "messages": [HumanMessage(content=chatMessage.content)],
-                "thread_id": chatMessage.thread_id
             },
             config={
                 "configurable": {

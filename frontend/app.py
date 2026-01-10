@@ -213,8 +213,7 @@ if st.sidebar.button("New Chat"):
 for thread in st.session_state.chat_threads[::-1]:
     if st.sidebar.button(f"Chat Id {thread}"):
         st.session_state.thread_id = thread
-        messages = loadChat(thread)
-
+        messages = loadChat(thread)     
         st.session_state.message_history = messages
         st.session_state.submit = True
 

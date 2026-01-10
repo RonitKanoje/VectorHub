@@ -24,7 +24,6 @@ llm = ChatOllama(model = "llama3.2",temperature=0)
 
 class ChatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
-    thread_id: str
     context: list[str]
     meta: list[dict]
 
@@ -77,10 +76,10 @@ wiki_tool = WikipediaQueryRun(
 )
 
 @traceable(name = "RAG Tool")
-def rag_node(state : ChatState) -> dict:
+def rag_node(state : ChatState,config) -> dict:
     """" Retrieve most relevant document from the retrieval system ."""
 
-    thread_id = state["thread_id"]
+    thread_id = config["configurable"]["thread_id"]
     query = state["messages"][-1].content
 
     result = retrieve_answer(query, thread_id=thread_id)
@@ -94,7 +93,6 @@ def rag_node(state : ChatState) -> dict:
     }
 
 tools = [ddgo,wiki_tool]
-llmWithTools = llm.bind_tools(tools)
 tool_node = ToolNode(tools)
 
 
@@ -109,18 +107,25 @@ def build_chatbot(checkpointer):
     graph.add_node("ragNode", rag_node)
     graph.add_node("tools", tool_node)
 
+    # User message → retrieve relevant docs first
     graph.add_edge(START, "ragNode")
+    
+    # After retrieval → LLM generates response
     graph.add_edge("ragNode", "chatNode")
+    
+    # LLM decides to use tools or end
     graph.add_conditional_edges(
         "chatNode",
         tools_condition,
         {
-            "tools": "tools",   # if tool is requested
-            END: END            # if no tool is needed
+            "tools": "tools",
+            END: END
         }
     )
-    graph.add_edge('tools','chatNode')
-
+    
+    # After tool use → back to LLM
+    graph.add_edge("tools", "chatNode")
+    
     return graph.compile(checkpointer=checkpointer)
 
 
