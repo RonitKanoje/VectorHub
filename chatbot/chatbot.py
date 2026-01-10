@@ -46,7 +46,7 @@ def chatNode(state: ChatState):
     base_prompt = prompt1.format()
 
     system_message = SystemMessage(
-        content=f"""
+        content=f"""{base_prompt}
         Context:{context_text}
         Timing metadata (ONLY for 'when/where' questions):
         Metadata :{meta_data}
@@ -131,12 +131,17 @@ def build_chatbot(checkpointer):
 
 #Defining functions to retrieve all threads and load conversation
 def retrieve_all_threads(checkpointer):
-    allThreads = set()
+    allThreads = []
+    seen = set()
+
     for checkpoint in checkpointer.list(None):
-        allThreads.add(
-            checkpoint.config["configurable"]["thread_id"]
-        )
-    return list(allThreads)
+        thread_id = checkpoint.config["configurable"]["thread_id"]
+        if thread_id not in seen:
+            seen.add(thread_id)
+            allThreads.append(thread_id)
+
+    return allThreads
+
 
 def loadConv(chatBot, thread_id):
     state = chatBot.get_state(

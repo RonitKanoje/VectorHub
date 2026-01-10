@@ -1,6 +1,5 @@
 import streamlit as st
 import uuid
-from langchain_core.messages import HumanMessage
 import requests
 import os 
 from frontend.languages import WHISPER_LANGUAGES
@@ -46,9 +45,7 @@ def wait_until_ready(thread_id):
 
                     if os.path.exists(video_dir):
                         shutil.rmtree(video_dir)
-
                 break
-
 
 # Session state 
 if 'message_history' not in st.session_state:
@@ -228,7 +225,12 @@ if st.session_state.submit == True:
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        wait_until_ready(st.session_state.thread_id)
+        try:
+            wait_until_ready(st.session_state.thread_id)
+        except Exception as e:
+            st.error("Kindly upload the video")
+            st.session_state.submit = False
+            st.stop()
 
         # Placeholder for assistant response
         with st.chat_message("assistant"):
