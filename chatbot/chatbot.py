@@ -133,14 +133,37 @@ def retrieve_all_threads(checkpointer):
         )
     return list(allThreads)
 
-def loadConv(chatBot ,thread_id):
+def loadConv(chatBot, thread_id):
     state = chatBot.get_state(
-        config={
-            "configurable": {
-                "thread_id": thread_id
+        config={"configurable": {"thread_id": thread_id}}
+    )
+
+    msgs = state.values.get("messages", [])
+
+    first_user = None
+    last_ai = None
+
+    for msg in msgs:
+        if msg.type == "human" and first_user is None:
+            first_user = {
+                "role": "user",
+                "content": msg.content
             }
-        })
-    return state.values.get("messages", [])
+
+        if msg.type == "ai":
+            last_ai = {
+                "role": "assistant",
+                "content": msg.content
+            }
+
+    result = []
+    if first_user:
+        result.append(first_user)
+    if last_ai:
+        result.append(last_ai)
+
+    return result
+
 
 if __name__ == '__main__':
     pass

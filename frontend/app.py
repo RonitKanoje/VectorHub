@@ -213,16 +213,10 @@ if st.sidebar.button("New Chat"):
 for thread in st.session_state.chat_threads[::-1]:
     if st.sidebar.button(f"Chat Id {thread}"):
         st.session_state.thread_id = thread
-        st.session_state.message_history = loadChat(thread)
+        messages = loadChat(thread)
 
-        tempMsg = []
-
-        for msg in st.session_state.message_history:
-            if msg['type'] == 'human':
-                tempMsg.append(({"role": "user", "content": msg['content']}))
-            else:
-                tempMsg.append(({"role": "assistant", "content": msg['content']}))
-        st.session_state.message_history = tempMsg
+        st.session_state.message_history = messages
+        st.session_state.submit = True
 
 ### Chat Interface
 if st.session_state.submit == True:

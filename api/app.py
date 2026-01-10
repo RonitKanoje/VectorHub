@@ -87,12 +87,6 @@ async def get_threads():
     threads = retrieve_all_threads(checkpointer)
     return {"threads": threads}
 
-@app.get("/load_chat/{thread_id}")
-async def load_chat(thread_id: str):
-    chatbot = app.state.chatbot
-    messages = loadConv(chatbot, thread_id)
-    return {"messages": [msg.dict() for msg in messages]}
-
 @app.post("/process_media")
 async def process_media(process_media: processMedia,background_tasks: BackgroundTasks):
     redis_client.set(process_media.thread_id, "queued")
@@ -155,4 +149,4 @@ def thread_status(thread_id: str):
 async def load_conversation(thread_id: str):
     chatbot = app.state.chatbot
     messages = loadConv(chatbot, thread_id)
-    return {"messages": [msg.dict() for msg in messages]}
+    return {"messages": messages}
