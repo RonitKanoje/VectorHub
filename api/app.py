@@ -36,27 +36,19 @@ async def chat(chatMessage: chatMessage):
         chatbot = app.state.chatbot
 
         status = redis_client.get(chatMessage.thread_id)
-
         if not status:
-            raise HTTPException(
-                status_code=404,
-                detail="invalid_thread_id"
-            )
+            raise HTTPException(404, "invalid_thread_id")
 
-        # Handle both bytes and str responses from Redis
         if isinstance(status, bytes):
             status = status.decode()
-        
+
         if status != "completed":
-            raise HTTPException(
-                status_code=409,
-                detail=f"thread_not_ready ({status})"
-            )
+            raise HTTPException(409, f"thread_not_ready ({status})")
 
         result = chatbot.invoke(
-            {
-                "messages": [HumanMessage(content=chatMessage.content)],
-            },
+            {"user_message": chatMessage.content,
+             #"tool_calls": 0
+             },
             config={
                 "configurable": {
                     "thread_id": chatMessage.thread_id
@@ -67,18 +59,10 @@ async def chat(chatMessage: chatMessage):
         return {"response": result["messages"][-1].content}
 
     except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
-
+        raise
     except Exception as e:
-        # Log the full error for debugging
-        import traceback
-        print("ERROR in /chat endpoint:")
-        print(traceback.format_exc())
-        
-        raise HTTPException(
-            status_code=500,
-            detail=f"chat_error: {str(e)}"
-        )
+        print("CHAT ERROR:", e)
+        raise HTTPException(500, "chat_failed")
 
 @app.get("/threads")
 async def get_threads():

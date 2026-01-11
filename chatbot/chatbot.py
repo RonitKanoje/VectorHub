@@ -1,6 +1,5 @@
 from langchain_core.messages import SystemMessage,BaseMessage
 import psycopg
-from langchain_core.tools import tool
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
@@ -11,11 +10,10 @@ from langchain_ollama import ChatOllama
 from typing import Annotated, Optional
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage,AIMessage
 from langsmith import traceable
 import os 
 from backend.main import retrieve_answer
-import requests
 from chatbot.prompt import prompt1
 
 load_dotenv()
@@ -23,45 +21,66 @@ load_dotenv()
 llm = ChatOllama(model = "llama3.2",temperature=0)
 
 class ChatState(TypedDict):
+    user_message: str
     messages: Annotated[list[BaseMessage], add_messages]
     context: list[str]
     meta: list[dict]
-
+    tool_calls: int  # Added back
 
 def chatNode(state: ChatState):
-    messages = state["messages"]
+    tool_calls = state.get("tool_calls", 0)
+    query = state["user_message"]
     context = state.get("context", [])
-    meta = state.get("meta",[])
-
-    meta_data = (
-    "\n".join(
-        f"- Mentioned at {m['start']}s (duration {m['duration']}s)"
-        for m in meta
-    )
-    if meta else "No timing metadata available."
-    )
-
+    meta = state.get("meta", [])
     context_text = "\n\n".join(context) if context else "No relevant context found."
-
-    base_prompt = prompt1.format()
-
-    system_message = SystemMessage(
-        content=f"""{base_prompt}
-        Context:{context_text}
-        Timing metadata (ONLY for 'when/where' questions):
-        Metadata :{meta_data}
-        """
+    meta_data = (
+        "\n".join(
+            f"- Mentioned at {m['start']}s (duration {m['duration']}s)"
+            for m in meta
+        )
+        if meta else
+        "No timing metadata available."
     )
-
-    if messages and isinstance(messages[0], SystemMessage):
-        messages = [system_message] + messages[1:]
+    
+    # Build the messages for LLM invocation
+    llm_messages = []
+    
+    # Always ensure system message is first if messages list is empty
+    if not state.get("messages"):
+        llm_messages.append(SystemMessage(content=prompt1.template))
     else:
-        messages = [system_message] + messages
+        # If messages exist, use them (they should already have system message)
+        llm_messages = state["messages"].copy()
+    
+    # Add the current human message with CLEAR INSTRUCTIONS
+    human_message = HumanMessage(
+        content=f"""IMPORTANT: First check if the context below answers the question. ONLY use external tools (Wikipedia, DuckDuckGo) if the context is insufficient or irrelevant.
 
-    response = llmWithTools.invoke(messages)
+Context from knowledge base:
+{context_text}
 
+Timing metadata (use ONLY for 'when/where' questions):
+{meta_data}
+
+User question: {query}
+
+Instructions:
+1. If the context above sufficiently answers the question, respond directly WITHOUT using tools
+2. ONLY call external tools if you genuinely need additional information not in the context
+3. Be efficient - avoid unnecessary tool calls"""
+    )
+    llm_messages.append(human_message)
+    
+    # Use LLM with or without tools based on tool call count
+    if tool_calls >= 2:  # Maximum 2 tool calls - force final answer
+        response = llm.invoke(llm_messages)
+    else:
+        response = llmWithTools.invoke(llm_messages)
+    
+    # Return only the NEW messages to be added
     return {
-        "messages": messages + [response]
+        "messages": [human_message, response],
+        "tool_calls": tool_calls  # Preserve counter
     }
 
 
@@ -80,7 +99,7 @@ def rag_node(state : ChatState,config) -> dict:
     """" Retrieve most relevant document from the retrieval system ."""
 
     thread_id = config["configurable"]["thread_id"]
-    query = state["messages"][-1].content
+    query = state['user_message']
 
     result = retrieve_answer(query, thread_id=thread_id)
 
@@ -88,8 +107,17 @@ def rag_node(state : ChatState,config) -> dict:
     metadata = [doc.metadata for doc in result]
 
     return {
-        "context": contexts,
+        "context": contexts,    
         "meta": metadata
+    }
+
+# Wrapper function to increment tool counter
+def tools_with_counter(state: ChatState):
+    """Execute tools and increment the counter."""
+    result = tool_node.invoke(state)
+    return {
+        **result,
+        "tool_calls": state.get("tool_calls", 0) + 1
     }
 
 tools = [ddgo,wiki_tool]
@@ -105,7 +133,7 @@ def build_chatbot(checkpointer):
 
     graph.add_node("chatNode", chatNode)
     graph.add_node("ragNode", rag_node)
-    graph.add_node("tools", tool_node)
+    graph.add_node("tools", tools_with_counter)  # Use wrapped version
 
     # User message → retrieve relevant docs first
     graph.add_edge(START, "ragNode")
@@ -123,11 +151,9 @@ def build_chatbot(checkpointer):
         }
     )
     
-    # After tool use → back to LLM
     graph.add_edge("tools", "chatNode")
     
     return graph.compile(checkpointer=checkpointer)
-
 
 #Defining functions to retrieve all threads and load conversation
 def retrieve_all_threads(checkpointer):
@@ -149,30 +175,41 @@ def loadConv(chatBot, thread_id):
     )
 
     msgs = state.values.get("messages", [])
+    # result = []
 
-    first_user = None
-    last_ai = None
+    # i = 0
+    # n = len(msgs)
 
-    for msg in msgs:
-        if msg.type == "human" and first_user is None:
-            first_user = {
-                "role": "user",
-                "content": msg.content
-            }
+    # while i < n:
+    #     msg = msgs[i]
 
-        if msg.type == "ai":
-            last_ai = {
-                "role": "assistant",
-                "content": msg.content
-            }
+    #     # Human message → always keep
+    #     if msg.type == "human":
+    #         result.append({
+    #             "role": "user",
+    #             "content": msg.content
+    #         })
 
-    result = []
-    if first_user:
-        result.append(first_user)
-    if last_ai:
-        result.append(last_ai)
+    #         i += 1
 
-    return result
+    #         # Consume all following AI messages
+    #         last_ai = None
+    #         while i < n and msgs[i].type == "ai":
+    #             last_ai = {
+    #                 "role": "assistant",
+    #                 "content": msgs[i].content
+    #             }
+    #             i += 1
+
+    #         # Append ONLY the final AI response
+    #         if last_ai:
+    #             result.append(last_ai)
+
+    #     else:
+    #         i += 1
+
+    return msgs
+
 
 
 if __name__ == '__main__':

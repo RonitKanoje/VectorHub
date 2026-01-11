@@ -109,7 +109,6 @@ if st.session_state.mode == "youtube":
         else:
             video_id = lnk.split("=")[-1]
             st.session_state.submit = True 
-            #main(video_id,"youtube",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": video_id,
                 "media": "youtube",
@@ -145,8 +144,6 @@ if st.session_state.mode == "video":
             with open(video_path, 'wb') as f:
                 f.write(upload_file.getbuffer())
             
-
-            # main(upload_files,"video",st.session_state.thread_id)
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": video_path,
                 "media": "video",
@@ -192,6 +189,22 @@ if st.session_state.mode == "text":
             st.success("Text received")
             st.write(st.session_state.thread_id)
 
+
+### Slider Bar for Chat History
+st.sidebar.title("Chat History")
+
+if st.sidebar.button("New Chat"):
+    resetChat()
+
+for thread in st.session_state.chat_threads:
+    if st.sidebar.button(f"Chat Id {thread}"):
+        st.session_state.thread_id = thread
+        messages = loadChat(thread) 
+        print(messages)    ######## debugging step
+        st.session_state.message_history = messages
+        if len(messages) != 0:
+            st.session_state.submit = True
+
 ## Main UI
 for msg in st.session_state.message_history:
     if msg["role"] == "user":
@@ -200,19 +213,6 @@ for msg in st.session_state.message_history:
     else:
         with st.chat_message("assistant"):
             st.markdown(msg["content"])
-
-### Slider Bar for Chat History
-st.sidebar.title("Chat History")
-
-if st.sidebar.button("New Chat"):
-    resetChat()
-
-for thread in st.session_state.chat_threads[::-1]:
-    if st.sidebar.button(f"Chat Id {thread}"):
-        st.session_state.thread_id = thread
-        messages = loadChat(thread)     
-        st.session_state.message_history = messages
-        st.session_state.submit = True
 
 ### Chat Interface
 if st.session_state.submit == True:
