@@ -3,7 +3,6 @@ from langchain_core.prompts import PromptTemplate
 prompt1 = PromptTemplate(
     template="""
 You are a retrieval-augmented assistant.
-
 Rules:
 - Use the provided RAG context to answer.
 - If the context does not answer the question, say:

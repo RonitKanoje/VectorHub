@@ -37,12 +37,12 @@ tool_node = ToolNode(tools)
 
 class strAns(BaseModel):
     answer: str = Field(description="Final Answer to the user")
-    confidence: float = Field(description="Confidence that the answer is fully supported by the RAG context (0 to 1)")
+    confidence: float = Field(description="Confidence that the answer is from the context range from 0 to 1")
 
 structured_llm = llm.with_structured_output(strAns)
 llmWithTools = llm.bind_tools(tools)
 
-CONFIDENCE_THRESHOLD = 0.7
+CONFIDENCE_THRESHOLD = 0.5
 
 class ChatState(TypedDict):
     user_message: str
@@ -140,7 +140,7 @@ def confidence_tools_condition(state: ChatState):
     last_message = state["messages"][-1]
     
     # Check if the message has tool calls
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:   ####check this 
         return "tools"
     
     return END
