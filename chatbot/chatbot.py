@@ -1,91 +1,29 @@
-from langchain_core.messages import SystemMessage,BaseMessage
+from langchain_core.messages import SystemMessage, BaseMessage, HumanMessage, AIMessage
 import psycopg
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.utilities import WikipediaAPIWrapper
-from langgraph.graph import START,StateGraph,END
+from langgraph.graph import START, StateGraph, END
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode,tools_condition
+from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_ollama import ChatOllama
 from typing import Annotated, Optional
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage,AIMessage
 from langsmith import traceable
 import os 
 from backend.main import retrieve_answer
 from chatbot.prompt import prompt1
+from pydantic import BaseModel, Field
+
 
 load_dotenv()
 
-llm = ChatOllama(model = "llama3.2",temperature=0)
-
-class ChatState(TypedDict):
-    user_message: str
-    messages: Annotated[list[BaseMessage], add_messages]
-    context: list[str]
-    meta: list[dict]
-    tool_calls: int  # Added back
-
-def chatNode(state: ChatState):
-    tool_calls = state.get("tool_calls", 0)
-    query = state["user_message"]
-    context = state.get("context", [])
-    meta = state.get("meta", [])
-    context_text = "\n\n".join(context) if context else "No relevant context found."
-    meta_data = (
-        "\n".join(
-            f"- Mentioned at {m['start']}s (duration {m['duration']}s)"
-            for m in meta
-        )
-        if meta else
-        "No timing metadata available."
-    )
-    
-    # Build the messages for LLM invocation
-    llm_messages = []
-    
-    # Always ensure system message is first if messages list is empty
-    if not state.get("messages"):
-        llm_messages.append(SystemMessage(content=prompt1.template))
-    else:
-        # If messages exist, use them (they should already have system message)
-        llm_messages = state["messages"].copy()
-    
-    # Add the current human message with CLEAR INSTRUCTIONS
-    human_message = HumanMessage(
-        content=f"""IMPORTANT: First check if the context below answers the question. ONLY use external tools (Wikipedia, DuckDuckGo) if the context is insufficient or irrelevant.
-
-Context from knowledge base:
-{context_text}
-
-Timing metadata (use ONLY for 'when/where' questions):
-{meta_data}
-
-User question: {query}
-
-Instructions:
-1. If the context above sufficiently answers the question, respond directly WITHOUT using tools
-2. ONLY call external tools if you genuinely need additional information not in the context
-3. Be efficient - avoid unnecessary tool calls"""
-    )
-    llm_messages.append(human_message)
-    
-    # Use LLM with or without tools based on tool call count
-    if tool_calls >= 2:  # Maximum 2 tool calls - force final answer
-        response = llm.invoke(llm_messages)
-    else:
-        response = llmWithTools.invoke(llm_messages)
-    
-    # Return only the NEW messages to be added
-    return {
-        "messages": [human_message, response],
-        "tool_calls": tool_calls  # Preserve counter
-    }
-
+# LLM
+llm = ChatOllama(model="llama3.2", temperature=0)
 
 ## Tools
-ddgo = DuckDuckGoSearchResults(region = "us-en")
+ddgo = DuckDuckGoSearchResults(region="us-en")
 
 wiki_tool = WikipediaQueryRun(
     api_wrapper=WikipediaAPIWrapper(
@@ -94,9 +32,87 @@ wiki_tool = WikipediaQueryRun(
     )
 )
 
-@traceable(name = "RAG Tool")
-def rag_node(state : ChatState,config) -> dict:
-    """" Retrieve most relevant document from the retrieval system ."""
+tools = [ddgo, wiki_tool]
+tool_node = ToolNode(tools)
+
+class strAns(BaseModel):
+    answer: str = Field(description="Final Answer to the user")
+    confidence: float = Field(description="Confidence that the answer is fully supported by the RAG context (0 to 1)")
+
+structured_llm = llm.with_structured_output(strAns)
+llmWithTools = llm.bind_tools(tools)
+
+CONFIDENCE_THRESHOLD = 0.7
+
+class ChatState(TypedDict):
+    user_message: str
+    messages: Annotated[list[BaseMessage], add_messages]
+    context: list[str]
+    meta: list[dict]
+    tool_calls: int  
+    confidence: float
+
+
+def chatNode(state: ChatState):
+    query = state["user_message"]
+    context = state.get("context", [])
+    meta = state.get("meta", [])
+
+    context_text = "\n\n".join(context) if context else "No relevant context found."
+    meta_data = (
+        "\n".join(
+            f"- Mentioned at {m['start']}s (duration {m['duration']}s)"
+            for m in meta
+        )
+        if meta else "No timing metadata available."
+    )
+
+    messages = state.get("messages", []).copy()
+
+    # System message ONCE
+    if not messages:
+        messages.append(SystemMessage(content=prompt1.template))
+
+    # Always add a human message for this turn
+    messages.append(
+        HumanMessage(
+            content=f"""Context (use only if relevant):
+{context_text}
+
+Timing metadata (ONLY for 'when/where' questions):
+{meta_data}
+
+User question:
+{query}"""
+        )
+    )
+
+    # First, get confidence score using structured output
+    result: strAns = structured_llm.invoke(messages)
+    confidence = result.confidence
+
+    # If confidence is low, call LLM with tools to let it decide
+    if confidence < CONFIDENCE_THRESHOLD:
+        # Use the LLM with tools bound
+        tool_response = llmWithTools.invoke(messages)
+        
+        return {
+            "messages": [tool_response],
+            "confidence": confidence
+        }
+    else:
+        # High confidence - return the answer directly
+        ai_message = AIMessage(content=result.answer)
+        
+        return {
+            "messages": [ai_message],
+            "confidence": confidence
+        }
+
+
+@traceable(name="RAG Tool")
+def rag_node(state: ChatState, config) -> dict:
+    """Retrieve most relevant document from the retrieval system."""
 
     thread_id = config["configurable"]["thread_id"]
     query = state['user_message']
@@ -111,29 +127,32 @@ def rag_node(state : ChatState,config) -> dict:
         "meta": metadata
     }
 
-# Wrapper function to increment tool counter
-def tools_with_counter(state: ChatState):
-    """Execute tools and increment the counter."""
-    result = tool_node.invoke(state)
-    return {
-        **result,
-        "tool_calls": state.get("tool_calls", 0) + 1
-    }
 
-tools = [ddgo,wiki_tool]
-tool_node = ToolNode(tools)
+def confidence_tools_condition(state: ChatState):
+    """Route based on confidence and tool calls in the message."""
+    confidence = state.get("confidence", 1.0)
+    
+    # If high confidence, end immediately
+    if confidence >= CONFIDENCE_THRESHOLD:
+        return END
+    
+    # Low confidence - check if LLM wants to use tools
+    last_message = state["messages"][-1]
+    
+    # Check if the message has tool calls
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
+    
+    return END
 
-
-llmWithTools = llm.bind_tools(tools)
 
 # Checkpointer to save and load conversation states
-
 def build_chatbot(checkpointer):
     graph = StateGraph(ChatState)
 
     graph.add_node("chatNode", chatNode)
     graph.add_node("ragNode", rag_node)
-    graph.add_node("tools", tools_with_counter)  # Use wrapped version
+    graph.add_node("tools", tool_node)
 
     # User message → retrieve relevant docs first
     graph.add_edge(START, "ragNode")
@@ -141,16 +160,17 @@ def build_chatbot(checkpointer):
     # After retrieval → LLM generates response
     graph.add_edge("ragNode", "chatNode")
     
-    # LLM decides to use tools or end
+    # LLM decides to use tools or end based on confidence
     graph.add_conditional_edges(
         "chatNode",
-        tools_condition,
+        confidence_tools_condition,
         {
             "tools": "tools",
             END: END
         }
     )
     
+    # After tools execute, go back to chatNode to process results
     graph.add_edge("tools", "chatNode")
     
     return graph.compile(checkpointer=checkpointer)

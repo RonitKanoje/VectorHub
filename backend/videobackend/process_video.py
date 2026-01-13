@@ -1,15 +1,9 @@
-import os
 import subprocess
 import whisper
 import torch
 import json
 import os
 from langsmith import traceable
-
-
-## converting video into audio
-import os
-import subprocess
 
 @traceable(name="Video to Audio Conversion")
 def vidToAud(vidAdd, thread_id):
