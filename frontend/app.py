@@ -19,6 +19,7 @@ def resetChat():
     st.session_state.message_history = []
     st.session_state.thread_id = generate_thread_id()
     addThread(st.session_state.thread_id)
+    st.session_state.submit = False  # works fine here too
 
 def loadChat(thread_id):
     response = requests.get(f"{API_BASE_URL}/loadConv/{thread_id}")
@@ -200,7 +201,6 @@ for thread in st.session_state.chat_threads:
     if st.sidebar.button(f"Chat Id {thread}"):
         st.session_state.thread_id = thread
         messages = loadChat(thread) 
-        print(messages)    ######## debugging step
         st.session_state.message_history = messages
         if len(messages) != 0:
             st.session_state.submit = True

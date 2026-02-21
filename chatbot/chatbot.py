@@ -243,43 +243,26 @@ def loadConv(chatBot, thread_id):
         config={"configurable": {"thread_id": thread_id}}
     )
 
+    if state is None:
+        return []
+
     msgs = state.values.get("messages", [])
-    # result = []
+    result = []
 
-    # i = 0
-    # n = len(msgs)
+    for msg in msgs:
+        if msg.type == "human":
+            result.append({
+                "role": "user",
+                "content": msg.content
+            })
 
-    # while i < n:
-    #     msg = msgs[i]
+        elif msg.type == "ai":
+            result.append({
+                "role": "assistant",
+                "content": msg.content
+            })
 
-    #     # Human message → always keep
-    #     if msg.type == "human":
-    #         result.append({
-    #             "role": "user",
-    #             "content": msg.content
-    #         })
-
-    #         i += 1
-
-    #         # Consume all following AI messages
-    #         last_ai = None
-    #         while i < n and msgs[i].type == "ai":
-    #             last_ai = {
-    #                 "role": "assistant",
-    #                 "content": msgs[i].content
-    #             }
-    #             i += 1
-
-    #         # Append ONLY the final AI response
-    #         if last_ai:
-    #             result.append(last_ai)
-
-    #     else:
-    #         i += 1
-
-    return msgs
-
-
+    return result
 
 if __name__ == '__main__':
     pass

@@ -46,7 +46,8 @@ async def chat(chatMessage: chatMessage):
             raise HTTPException(409, f"thread_not_ready ({status})")
 
         result = chatbot.invoke(
-            {"user_message": chatMessage.content,
+            {"messages": [HumanMessage(chatMessage.content)],
+             "user_message": chatMessage.content,
              #"tool_calls": 0
              },
             config={
