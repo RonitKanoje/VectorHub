@@ -7,13 +7,13 @@ from langgraph.graph import START, StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_ollama import ChatOllama
-from typing import Annotated, Optional
+from typing import Annotated, Optional,Literal
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
 from langsmith import traceable
 import os 
 from backend.main import retrieve_answer
-from chatbot.prompt import prompt1
+from chatbot.prompt import prompt1,simple_chat_prompt,prompt
 from pydantic import BaseModel, Field
 
 
@@ -39,13 +39,22 @@ class strAns(BaseModel):
     answer: str = Field(description="Final Answer to the user")
     confidence: float = Field(description="Confidence that the answer is from the context range from 0 to 1")
 
+class IsRag(BaseModel):
+    # The LLM can ONLY pick "rag" or "chat"
+    decision: Literal["rag", "chat"] = Field(
+        description="Decide whether to use the RAG search tool or general chat knowledge."
+    )
+
 structured_llm = llm.with_structured_output(strAns)
+
+isRag_llm = llm.with_structured_output(IsRag)
 llmWithTools = llm.bind_tools(tools)
 
 CONFIDENCE_THRESHOLD = 0.5
 
 class ChatState(TypedDict):
     user_message: str
+    route : str
     messages: Annotated[list[BaseMessage], add_messages]
     context: list[str]
     meta: list[dict]
@@ -127,6 +136,20 @@ def rag_node(state: ChatState, config) -> dict:
         "meta": metadata
     }
 
+def intent_node(state: ChatState):
+    msg = [
+        SystemMessage(content=prompt.template),
+        HumanMessage(content=state["user_message"])
+    ]
+
+    try:
+        result: IsRag = isRag_llm.invoke(msg)
+        route = result.decision
+    except Exception:
+        route = "chat"   # safe fallback
+
+    return {"route": route}
+
 
 def confidence_tools_condition(state: ChatState):
     """Route based on confidence and tool calls in the message."""
@@ -145,17 +168,43 @@ def confidence_tools_condition(state: ChatState):
     
     return END
 
+def simpleChatNode(state : ChatState):
+
+    messages = state.get("messages", []).copy()
+
+    if not messages:
+        messages.append(SystemMessage(content = simple_chat_prompt.template))
+
+    messages.append(HumanMessage(content=state["user_message"]))
+
+    response = llm.invoke(messages)
+
+    return {
+        "messages" : [response]
+    }
+
 
 # Checkpointer to save and load conversation states
 def build_chatbot(checkpointer):
     graph = StateGraph(ChatState)
 
+    graph.add_node("intent",intent_node)
+    graph.add_node("simpleChatNode",simpleChatNode)
     graph.add_node("chatNode", chatNode)
     graph.add_node("ragNode", rag_node)
     graph.add_node("tools", tool_node)
 
     # User message → retrieve relevant docs first
-    graph.add_edge(START, "ragNode")
+    graph.add_edge(START, "intent")
+
+    graph.add_conditional_edges(
+        "intent",
+        lambda s : s['route'],
+        {
+            "chat": "simpleChatNode",
+            "rag" : "ragNode"
+        }
+    )
     
     # After retrieval → LLM generates response
     graph.add_edge("ragNode", "chatNode")
