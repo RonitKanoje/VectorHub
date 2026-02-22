@@ -4,6 +4,9 @@ import requests
 import os 
 from frontend.languages import WHISPER_LANGUAGES
 import shutil
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.title("Welcome to Q&A Chatbot")
 
@@ -19,7 +22,7 @@ def resetChat():
     st.session_state.message_history = []
     st.session_state.thread_id = generate_thread_id()
     addThread(st.session_state.thread_id)
-    st.session_state.submit = False  # works fine here too
+    st.session_state.submit = False  
 
 def loadChat(thread_id):
     response = requests.get(f"{API_BASE_URL}/loadConv/{thread_id}")
@@ -53,7 +56,8 @@ if 'message_history' not in st.session_state:
     st.session_state.message_history = []
 
 if 'thread_id' not in st.session_state:
-    st.session_state.thread_id = generate_thread_id()
+    st.session_state.thread_id = {'thread_id' : generate_thread_id(),
+                                  'name' : "New Chat"}
 
 API_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
@@ -74,7 +78,7 @@ if "submit" not in st.session_state:
 
 CONFIG = {
     "configurable": {
-        "thread_id": st.session_state.thread_id
+        "thread_id": st.session_state.thread_id["thread_id"]
     }
 }
 
@@ -113,11 +117,11 @@ if st.session_state.mode == "youtube":
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": video_id,
                 "media": "youtube",
-                "thread_id": st.session_state.thread_id
+                "thread_id": st.session_state.thread_id["thread_id"]
             })
             st.success("Video ID extracted")
             st.write(video_id)
-            st.write(st.session_state.thread_id)
+            st.write(st.session_state.thread_id["thread_id"])
 
 # Video Summarizer 
 if st.session_state.mode == "video":
@@ -141,18 +145,18 @@ if st.session_state.mode == "video":
         else:
             save_dir = 'backend/videobackend/tmp/videos'
             os.makedirs(save_dir, exist_ok=True)
-            video_path = os.path.join(save_dir, f'{st.session_state.thread_id}_{upload_file.name}')
+            video_path = os.path.join(save_dir, f'{st.session_state.thread_id["thread_id"]}_{upload_file.name}')
             with open(video_path, 'wb') as f:
                 f.write(upload_file.getbuffer())
             
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": video_path,
                 "media": "video",
-                "thread_id": st.session_state.thread_id,
+                "thread_id": st.session_state.thread_id["thread_id"],
                 "language": None if lang == "None" else lang
             })
             st.session_state.submit = True 
-            st.write(st.session_state.thread_id)
+            st.write(st.session_state.thread_id["thread_id"])
 
 # Audio Summarizer 
 if st.session_state.mode == "audio":
@@ -169,7 +173,7 @@ if st.session_state.mode == "audio":
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": upload_file,
                 "media": "audio",
-                "thread_id": st.session_state.thread_id
+                "thread_id": st.session_state.thread_id["thread_id"]
             })
             st.session_state.submit = True 
 
@@ -184,11 +188,11 @@ if st.session_state.mode == "text":
             requests.post(os.getenv("FASTAPI_PROCESS_URL"), json={
                 "path": text_input,
                 "media": "text",
-                "thread_id": st.session_state.thread_id
+                "thread_id": st.session_state.thread_id["thread_id"]
             })
             st.session_state.submit = True 
             st.success("Text received")
-            st.write(st.session_state.thread_id)
+            st.write(st.session_state.thread_id["thread_id"])
 
 
 ### Slider Bar for Chat History
@@ -198,9 +202,9 @@ if st.sidebar.button("New Chat"):
     resetChat()
 
 for thread in st.session_state.chat_threads:
-    if st.sidebar.button(f"Chat Id {thread}"):
+    if st.sidebar.button(f"{thread['title'][:20]}..."):
         st.session_state.thread_id = thread
-        messages = loadChat(thread) 
+        messages = loadChat(thread['thread_id']) 
         st.session_state.message_history = messages
         if len(messages) != 0:
             st.session_state.submit = True
@@ -217,8 +221,18 @@ for msg in st.session_state.message_history:
 ### Chat Interface
 if st.session_state.submit == True:
     user_input = st.chat_input("Type your message here...")
-
     if user_input:
+        if st.session_state.thread_id['name'] == "New Chat":
+            res = requests.post(os.getenv("FASTAPI_NAMECHAT_URL"), json={
+                "message": user_input,
+                "thread_id": st.session_state.thread_id["thread_id"]
+            })
+
+            print("NameChat status:", res.status_code)
+
+            if res.status_code == 200:
+                st.session_state.thread_id['name'] = res.json()['title']
+
         st.session_state.message_history.append({"role": "user", "content": user_input})
 
         # Display user message in chat message container
@@ -226,7 +240,7 @@ if st.session_state.submit == True:
             st.markdown(user_input)
 
         try:
-            wait_until_ready(st.session_state.thread_id)
+            wait_until_ready(st.session_state.thread_id["thread_id"])
         except Exception as e:
             st.error("Kindly upload the video")
             st.session_state.submit = False
@@ -246,7 +260,7 @@ if st.session_state.submit == True:
                     json={
                         "role": "user",
                         "content": user_input,
-                        "thread_id": st.session_state.thread_id
+                        "thread_id": st.session_state.thread_id["thread_id"]
                     },
                     timeout=240  # Add timeout
                 )

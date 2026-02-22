@@ -54,3 +54,12 @@ Rules:
 """,
     input_variables=[]
 )
+
+
+nameChat_prompt = PromptTemplate(
+    template="""You You are a helpful assistant that generates concise titles for chat conversations. 
+    Given the following user message, create a short and descriptive title that captures the essence of the conversation:
+
+    User Message: "{message}"
+    """,
+    input_variables=["message"])

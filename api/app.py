@@ -1,8 +1,9 @@
+from email.mime import message
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from api.schemas import processMedia
+from api.schemas import chatName, processMedia,chatName
 from database.postgres.checkpointer import get_checkpointer
 from langchain_core.messages import HumanMessage
-from chatbot.chatbot import retrieve_all_threads, loadConv
 import json
 from backend.main import main
 from chatbot.chatbot import build_chatbot
@@ -11,14 +12,16 @@ from backend.status import redis_client
 from database.qdrant.vectorStore import create_vector_store
 from fastapi import HTTPException
 from langsmith import traceable
-from chatbot.chatbot import retrieve_all_threads, loadConv
+from chatbot.chatbot import loadConv
+from chatbot.nameChat import title_from_message
+from database.postgres.thread import get_db_connection, create_thread_with_title
 
 app = FastAPI()
 
 @app.get("/")
 async def read_root():
     return {"status": "API is running"}
-
+    
 @app.on_event("startup")
 def startup():
     app.state.checkpointer = get_checkpointer()
@@ -33,23 +36,31 @@ def startup():
 @app.post("/chat")
 async def chat(chatMessage: chatMessage):
     try:
+        print("Incoming message:", chatMessage)
+        print("Thread ID type:", type(chatMessage.thread_id))
+        print("Thread ID value:", chatMessage.thread_id)
+
         chatbot = app.state.chatbot
 
         status = redis_client.get(chatMessage.thread_id)
+        print("Redis status raw:", status)
+
         if not status:
             raise HTTPException(404, "invalid_thread_id")
 
         if isinstance(status, bytes):
             status = status.decode()
 
+        print("Redis status decoded:", status)
+
         if status != "completed":
             raise HTTPException(409, f"thread_not_ready ({status})")
 
         result = chatbot.invoke(
-            {"messages": [HumanMessage(chatMessage.content)],
-             "user_message": chatMessage.content,
-             #"tool_calls": 0
-             },
+            {
+                "messages": [HumanMessage(chatMessage.content)],
+                "user_message": chatMessage.content,
+            },
             config={
                 "configurable": {
                     "thread_id": chatMessage.thread_id
@@ -59,17 +70,31 @@ async def chat(chatMessage: chatMessage):
 
         return {"response": result["messages"][-1].content}
 
-    except HTTPException:
-        raise
     except Exception as e:
-        print("CHAT ERROR:", e)
-        raise HTTPException(500, "chat_failed")
+        print("CHAT ERROR FULL:", repr(e))
+        raise
+
+# @app.get("/threads")
+# async def get_threads():
+#     checkpointer = app.state.checkpointer
+#     threads = retrieve_all_threads(checkpointer)
+#     return {"threads": threads}
 
 @app.get("/threads")
 async def get_threads():
-    checkpointer = app.state.checkpointer
-    threads = retrieve_all_threads(checkpointer)
-    return {"threads": threads}
+    try:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT thread_id, title FROM threads")
+                threads = [{"thread_id": row[0], "title": row[1]} for row in cur.fetchall()]
+            return {"threads": threads}
+        finally:
+            conn.close()
+    except Exception as e:
+        print("GET THREADS ERROR:", e)
+        raise HTTPException(500, "get_threads_failed")
+    
 
 @app.post("/process_media")
 async def process_media(process_media: processMedia,background_tasks: BackgroundTasks):
@@ -134,3 +159,13 @@ async def load_conversation(thread_id: str):
     chatbot = app.state.chatbot
     messages = loadConv(chatbot, thread_id)
     return {"messages": messages}
+
+@app.post("/nameChat")
+async def name_chat(message: chatName):
+    try:
+        title = title_from_message(HumanMessage(content=message.message))
+        create_thread_with_title(message.thread_id, title)
+        return {"title": title}
+    except Exception as e:
+        print("NAME CHAT ERROR:", e)
+        raise HTTPException(500, "name_chat_failed")

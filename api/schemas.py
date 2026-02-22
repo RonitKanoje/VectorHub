@@ -12,3 +12,6 @@ class chatMessage(BaseModel):
     content: str = Field(..., description="Content of the message")
     thread_id: str = Field(..., description="Thread ID for chat context")
 
+class chatName(BaseModel):
+    message: str = Field(..., description="Content of the user message to generate a chat title from")
+    thread_id: str = Field(..., description="Thread ID for chat context")

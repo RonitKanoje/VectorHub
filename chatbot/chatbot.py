@@ -225,17 +225,19 @@ def build_chatbot(checkpointer):
     return graph.compile(checkpointer=checkpointer)
 
 #Defining functions to retrieve all threads and load conversation
-def retrieve_all_threads(checkpointer):
-    allThreads = []
-    seen = set()
+# def retrieve_all_threads(checkpointer):
+#     allThreads = []
+#     seen = set()
 
-    for checkpoint in checkpointer.list(None):
-        thread_id = checkpoint.config["configurable"]["thread_id"]
-        if thread_id not in seen:
-            seen.add(thread_id)
-            allThreads.append(thread_id)
+#     for checkpoint in checkpointer.list(None):
+#         thread_id = checkpoint.config["configurable"]["thread_id"]
+#         if thread_id not in seen:
+#             seen.add(thread_id)
+#             allThreads.append(thread_id)
 
-    return allThreads
+#     return allThreads
+
+# def long_term_memory():
 
 
 def loadConv(chatBot, thread_id):
