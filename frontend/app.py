@@ -15,16 +15,27 @@ def generate_thread_id():
     return str(uuid.uuid4())
 
 def addThread(thread_id):
-    if thread_id not in st.session_state.chat_threads:
-        st.session_state.chat_threads.append(thread_id)
+    thread_dict = {
+        "thread_id": thread_id,
+        "title": "New Chat"
+    }
+    # Check if thread_id already exists
+    existing_ids = [t['thread_id'] for t in st.session_state.chat_threads]
+    if thread_id not in existing_ids:
+        st.session_state.chat_threads.append(thread_dict)
 
 def resetChat():
     st.session_state.message_history = []
-    st.session_state.thread_id = generate_thread_id()
-    addThread(st.session_state.thread_id)
-    st.session_state.submit = False  
+    st.session_state.thread_id = {
+        "thread_id": generate_thread_id(),
+        "title": "New Chat"    
+    }
+    addThread(st.session_state.thread_id["thread_id"])
+    st.session_state.submit = False
+    st.rerun()
 
 def loadChat(thread_id):
+    st.session_state.submit = True
     response = requests.get(f"{API_BASE_URL}/loadConv/{thread_id}")
     response.raise_for_status()     
     return response.json()['messages']
@@ -57,7 +68,7 @@ if 'message_history' not in st.session_state:
 
 if 'thread_id' not in st.session_state:
     st.session_state.thread_id = {'thread_id' : generate_thread_id(),
-                                  'name' : "New Chat"}
+                                  'title' : "New Chat"}
 
 API_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
@@ -86,19 +97,19 @@ CONFIG = {
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    if st.button("Youtube Transcript"):
+    if st.button("Youtube Transcript",disabled=st.session_state.submit):
         st.session_state.mode = "youtube"
 
 with col2:
-    if st.button("Video Summarizer"):
+    if st.button("Video Summarizer",disabled=st.session_state.submit):
         st.session_state.mode = "video"
 
 with col3:
-    if st.button("Text Summarizer"):
+    if st.button("Text Summarizer",disabled=st.session_state.submit):
         st.session_state.mode = "text"
 
 with col4:
-    if st.button("Audio Summarize"):
+    if st.button("Audio Summarize",disabled=st.session_state.submit):
         st.session_state.mode = "audio"
 
 # YouTube Transcript 
@@ -202,12 +213,13 @@ if st.sidebar.button("New Chat"):
     resetChat()
 
 for thread in st.session_state.chat_threads:
-    if st.sidebar.button(f"{thread['title'][:20]}..."):
+    if st.sidebar.button(f"{thread['title'][:20]}...",key=thread['thread_id']):
         st.session_state.thread_id = thread
         messages = loadChat(thread['thread_id']) 
         st.session_state.message_history = messages
         if len(messages) != 0:
             st.session_state.submit = True
+        st.rerun() 
 
 ## Main UI
 for msg in st.session_state.message_history:
@@ -222,7 +234,7 @@ for msg in st.session_state.message_history:
 if st.session_state.submit == True:
     user_input = st.chat_input("Type your message here...")
     if user_input:
-        if st.session_state.thread_id['name'] == "New Chat":
+        if st.session_state.thread_id['title'] == "New Chat":
             res = requests.post(os.getenv("FASTAPI_NAMECHAT_URL"), json={
                 "message": user_input,
                 "thread_id": st.session_state.thread_id["thread_id"]
@@ -231,7 +243,7 @@ if st.session_state.submit == True:
             print("NameChat status:", res.status_code)
 
             if res.status_code == 200:
-                st.session_state.thread_id['name'] = res.json()['title']
+                st.session_state.thread_id['title'] = res.json()['title']
 
         st.session_state.message_history.append({"role": "user", "content": user_input})
 
