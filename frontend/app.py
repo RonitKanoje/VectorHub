@@ -63,6 +63,18 @@ def wait_until_ready(thread_id):
                 break
 
 # Session state 
+
+if not st.session_state.authenticated:
+    st.warning("Please login first.")
+    st.switch_page("pages/1_Authentication.py")
+    st.stop()
+
+
+if "user_id" not in st.session_state:
+    st.warning("Please login first.")
+    st.switch_page("pages/1_Authentication.py")
+
+
 if 'message_history' not in st.session_state:
     st.session_state.message_history = []
 

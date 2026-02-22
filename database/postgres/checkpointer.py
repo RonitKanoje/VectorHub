@@ -1,17 +1,8 @@
 from langgraph.checkpoint.postgres import PostgresSaver
-import psycopg
-import os
+from database.postgres.db import get_db_connection
 
 def get_checkpointer():
-    conn = psycopg.connect(
-        host="localhost",
-        port=5432,
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        autocommit=True
-    )
-
+    conn = get_db_connection()
     cp = PostgresSaver(conn=conn)
     cp.setup()
     return cp

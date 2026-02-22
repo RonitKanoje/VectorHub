@@ -15,3 +15,12 @@ class chatMessage(BaseModel):
 class chatName(BaseModel):
     message: str = Field(..., description="Content of the user message to generate a chat title from")
     thread_id: str = Field(..., description="Thread ID for chat context")
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
+
+
+class UserLogin(BaseModel):
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
