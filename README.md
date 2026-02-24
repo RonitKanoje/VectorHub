@@ -40,8 +40,6 @@ User → FastAPI → Background Task → Processing Pipeline → Embeddings → 
 ---
 
 
----
-
 ## 🔐 Authentication Flow
 
 - Passwords hashed using bcrypt
