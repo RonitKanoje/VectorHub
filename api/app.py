@@ -14,8 +14,7 @@ from database.qdrant.vectorStore import create_vector_store
 from fastapi import HTTPException
 from langsmith import traceable
 from chatbot.chatbot import loadConv
-from chatbot.nameChat import title_from_message
-from frontend.login import hash_password
+from chatbot.nameChat import title_from_message 
 from database.postgres.thread import get_db_connection, create_thread_with_title
 from psycopg.errors import UniqueViolation
 
@@ -221,7 +220,7 @@ async def login(user: UserLogin):
                 detail="Invalid username or password"
             )
 
-        username, stored_hash = db_user
+        user_id, username, stored_hash = db_user
 
         if not verify_password(user.password, stored_hash):
             raise HTTPException(
@@ -232,6 +231,7 @@ async def login(user: UserLogin):
         return {
             "status": "success",
             "message": "Login successful",
+            "user_id": user_id,
             "username": username
         }
 

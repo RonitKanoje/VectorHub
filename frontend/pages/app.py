@@ -2,7 +2,7 @@ import streamlit as st
 import uuid
 import requests
 import os 
-from frontend.languages import WHISPER_LANGUAGES
+from frontend.pages.languages import WHISPER_LANGUAGES
 import shutil
 from dotenv import load_dotenv
 
@@ -63,17 +63,6 @@ def wait_until_ready(thread_id):
                 break
 
 # Session state 
-
-if not st.session_state.authenticated:
-    st.warning("Please login first.")
-    st.switch_page("pages/1_Authentication.py")
-    st.stop()
-
-
-if "user_id" not in st.session_state:
-    st.warning("Please login first.")
-    st.switch_page("pages/1_Authentication.py")
-
 
 if 'message_history' not in st.session_state:
     st.session_state.message_history = []
@@ -318,3 +307,4 @@ if st.session_state.submit == True:
                 
             except requests.exceptions.RequestException as e:
                 response_placeholder.markdown(f"**Error**: {str(e)}")
+

@@ -8,8 +8,18 @@ import re
 st.set_page_config(
     page_title="Authentication System",
     page_icon="🔐",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed" 
 )
+
+
+st.markdown("""
+<style>
+[data-testid="stSidebarNav"] { display: none; }
+[data-testid="collapsedControl"] { display: none; }
+[data-testid="stSidebar"] { display: none; }
+</style>
+""", unsafe_allow_html=True)
 
 API_BASE_URL = "http://localhost:8000"
 
@@ -33,8 +43,8 @@ def validate_password(password):
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-if "user_id" not in st.session_state:
-    st.session_state.user_id = None
+# if "user_id" not in st.session_state:
+#     st.session_state.user_id = None
 
 if "username" not in st.session_state:
     st.session_state.username = None
@@ -114,12 +124,11 @@ def login_page():
 
             if res.status_code == 200:
                 data = res.json()
-                st.session_state.authenticated = True
-                st.session_state.user_id = data["user_id"]
+                st.session_state.authenticated =True
                 st.session_state.username = data["username"]
 
                 st.success("Login successful!")
-                st.rerun()
+                st.switch_page("pages/app.py")
             else:
                 st.error(res.json().get("detail", "Invalid username or password"))
 
@@ -139,7 +148,6 @@ def dashboard():
 
     st.divider()
     st.subheader("Dashboard Area")
-    st.write("This is where your AI chatbot will load.")
 
     if st.button("Logout"):
         st.session_state.authenticated = False
