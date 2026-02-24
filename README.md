@@ -86,4 +86,3 @@ This enables:
 git clone https://github.com/your-username/threadcore.git
 cd threadcore
 
-## 📂 Project Structure
