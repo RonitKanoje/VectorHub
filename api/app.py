@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from api.schemas import UserCreate, UserLogin, chatName, processMedia,chatName
+from api.schemas import UserCreate, UserLogin, chatName, processMedia,chatName,UserResponse,UserCreate
 from backend.hashing import hash_password, verify_password
 from database.postgres.checkpointer import get_checkpointer
 from langchain_core.messages import HumanMessage
@@ -8,8 +8,8 @@ from backend.main import main
 from chatbot.chatbot import build_chatbot
 from api.schemas import processMedia,chatMessage
 from backend.status import redis_client
-from database.postgres.users import create_user, get_user_by_username
-from database.postgres.users import create_user
+# from database.postgres.users import create_user, get_user_by_username
+# from database.postgres.users import create_user
 from database.qdrant.vectorStore import create_vector_store
 from fastapi import HTTPException
 from langsmith import traceable
@@ -17,6 +17,8 @@ from chatbot.chatbot import loadConv
 from chatbot.nameChat import title_from_message 
 from database.postgres.thread import get_db_connection, create_thread_with_title
 from psycopg.errors import UniqueViolation
+from database.postgres.userdb import create_user, get_user_by_username,get_db
+
 
 app = FastAPI()
 
@@ -172,75 +174,21 @@ async def name_chat(message: chatName):
         print("NAME CHAT ERROR:", e)
         raise HTTPException(500, "name_chat_failed")
 
-
 @app.post("/register")
-async def register(user: UserCreate):
+def register(user: UserCreate):
     try:
-        password_hash = hash_password(user.password)
+        existing_user = get_user_by_username(user.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-        result = create_user(user.username, password_hash)
+        hashed_password = hash_password(user.password)
+        new_user = create_user(user.username, hashed_password)
+        return UserResponse(id=new_user.id, username=new_user.username)
 
-        if not result:
-            raise HTTPException(
-                status_code=400,
-                detail="Username already exists"
-            )
-
-        return {
-            "status": "success",
-            "message": "User created successfully"
-        }
-
-    except UniqueViolation:
-        raise HTTPException(
-            status_code=400,
-            detail="Username already exists"
-        )
+    except HTTPException:
+        raise  # re-raise known exceptions
 
     except Exception as e:
         print("REGISTER ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="User registration failed"
-        )
-
-# @app.post("/get_password_hash")
-# async def get_password_hash(user: UserCreate):
-#     password = user.password
-#     return {"password_hash": password}
-
-@app.post("/login")
-async def login(user: UserLogin):
-    try:
-        db_user = get_user_by_username(user.username)
-
-        if not db_user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid username or password"
-            )
-
-        user_id, username, stored_hash = db_user
-
-        if not verify_password(user.password, stored_hash):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid username or password"
-            )
-
-        return {
-            "status": "success",
-            "message": "Login successful",
-            "user_id": user_id,
-            "username": username
-        }
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        print("LOGIN ERROR:", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Login failed"
-        )
+        raise HTTPException(status_code=500, detail="Registration failed")
+    
