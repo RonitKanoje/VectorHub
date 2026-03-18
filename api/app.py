@@ -1,6 +1,8 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from api.schemas import UserCreate, UserLogin, chatName, processMedia,chatName,UserResponse,UserCreate
-from backend.hashing import hash_password, verify_password
+from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
+from git import List
+from requests import Session
+from api.schemas import AccessTokenResponse, UserCreate, UserLogin, chatName, processMedia,chatName,UserResponse,UserCreate
+from utils.hashing import hash_password, verify_password
 from database.postgres.checkpointer import get_checkpointer
 from langchain_core.messages import HumanMessage
 import json
@@ -8,8 +10,6 @@ from backend.main import main
 from chatbot.chatbot import build_chatbot
 from api.schemas import processMedia,chatMessage
 from backend.status import redis_client
-# from database.postgres.users import create_user, get_user_by_username
-# from database.postgres.users import create_user
 from database.qdrant.vectorStore import create_vector_store
 from fastapi import HTTPException
 from langsmith import traceable
@@ -17,7 +17,10 @@ from chatbot.chatbot import loadConv
 from chatbot.nameChat import title_from_message 
 from database.postgres.thread import get_db_connection, create_thread_with_title
 from psycopg.errors import UniqueViolation
-from database.postgres.userdb import create_user, get_user_by_username,get_db
+from database.postgres.userdb import UserDB, create_user, get_user_by_username,get_db
+from utils.jwt_handler import create_access_token, get_current_active_user, get_current_user
+from fastapi.security import OAuth2PasswordRequestForm
+from database.postgres.userdb import get_all_users
 
 
 app = FastAPI()
@@ -175,20 +178,56 @@ async def name_chat(message: chatName):
         raise HTTPException(500, "name_chat_failed")
 
 @app.post("/register")
-def register(user: UserCreate):
+def register(user: UserCreate,db : Session = Depends(get_db)):
     try:
-        existing_user = get_user_by_username(user.username)
+        existing_user = get_user_by_username(db,user.username)
         if existing_user:
             raise HTTPException(status_code=400, detail="Username already exists")
-
+##################################
         hashed_password = hash_password(user.password)
-        new_user = create_user(user.username, hashed_password)
-        return UserResponse(id=new_user.id, username=new_user.username)
-
-    except HTTPException:
-        raise  # re-raise known exceptions
-
+        new_user = UserDB(name = user.name,username=user.username, hashed_password=hashed_password)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {"message": "User registered successfully"}
     except Exception as e:
-        print("REGISTER ERROR:", e)
+        print("REGISTRATION ERROR:", e)
         raise HTTPException(status_code=500, detail="Registration failed")
+
+@app.post("/token",response_model=AccessTokenResponse)
+def login_access_token(form_data : OAuth2PasswordRequestForm
+ = Depends(), db: Session = Depends(get_db)):
+    try:
+        user = get_user_by_username(db,form_data.username)
+        if not user or not verify_password(form_data.password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+
+        access_token = create_access_token(data={"user_id": user.id})
+        return AccessTokenResponse(access_token=access_token, token_type="bearer")
+    except Exception as e:
+        print("LOGIN ERROR:", e)
+        raise HTTPException(status_code=500, detail="Login failed")
     
+#API Endpoints for CRUD operation
+
+@app.get("/profile")  # no need for user_id in URL
+def get_profile(current_user: UserDB = Depends(get_current_active_user)):
+    try:
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return current_user
+    except HTTPException:
+        raise  # re-raise 404 cleanly
+    except Exception as e:
+        print("PROFILE ERROR:", e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve profile")
+    
+    
+@app.get("/users",response_model=List[UserResponse])
+def get_users():
+    try:
+        users = get_all_users()
+        return users
+    except Exception as e:
+        print("USERS ERROR:", e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve users")

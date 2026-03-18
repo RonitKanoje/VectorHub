@@ -17,10 +17,18 @@ class chatName(BaseModel):
     thread_id: str = Field(..., description="Thread ID for chat context")
 
 class UserCreate(BaseModel):
+    name : str = Field(..., min_length=3, max_length=15)
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)
 
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    name : str
 
-class UserLogin(BaseModel):
-    username: str = Field(..., min_length=3)
-    password: str = Field(..., min_length=8)
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"   ### i am sending this use it for authentication 
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
