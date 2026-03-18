@@ -51,7 +51,7 @@ def main(path, media, thread_id, language=None):
             doc.metadata["thread_id"] = thread_id
             doc.metadata["user_id"] = user_id   # VERY IMPORTANT
             doc.metadata["media_type"] = media
-        vectorStore = create_collection_if_not_exists("video_embeddings", processChunks)   
+        vectorStore = store_chat_embeddings(processChunks, user_id, thread_id)
 
 
         redis_client.set(thread_id, "completed")

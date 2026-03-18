@@ -1,10 +1,10 @@
 from sqlalchemy import DateTime, create_engine, Column, Integer, String, Boolean,DATETIME, func
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+load_dotenv(override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -38,3 +38,7 @@ def get_user_by_username(db: Session, username: str):
 
 def get_all_users(db: Session):
     return db.query(UserDB).all()
+
+if __name__ == "__main__":
+
+    print("USING DB:", DATABASE_URL)
