@@ -1,8 +1,14 @@
 from sqlalchemy import DateTime, create_engine, Column, Integer, String, Boolean,DATETIME, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from dotenv import load_dotenv
+import os
 
-engine = create_engine("postgresql://postgres:password@localhost:5432/postgres")
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -29,3 +35,6 @@ def get_db():
 
 def get_user_by_username(db: Session, username: str):
     return db.query(UserDB).filter(UserDB.username == username).first()
+
+def get_all_users(db: Session):
+    return db.query(UserDB).all()

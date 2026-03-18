@@ -33,7 +33,7 @@ def verify_token(token: str):
 
 # Auth Dependencies
 
-def get_current_user(token: str = oauth2_scheme,db: Session = Depends(get_db)):
+def get_current_user(token: str = Depends(oauth2_scheme),db: Session = Depends(get_db)):
     try:
         payload = verify_token(token)
         user_id: int = payload.get("user_id")
@@ -46,3 +46,9 @@ def get_current_user(token: str = oauth2_scheme,db: Session = Depends(get_db)):
         return user
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+def get_current_active_user(current_user: UserDB = Depends(get_current_user)):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+

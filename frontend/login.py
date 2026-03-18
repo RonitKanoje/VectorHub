@@ -58,6 +58,7 @@ if "page" not in st.session_state:
 def signup_page():
     st.title("📝 Create Account")
 
+    name = st.text_input("Full Name")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
     confirm_password = st.text_input("Confirm Password", type="password")
@@ -99,9 +100,7 @@ def signup_page():
         st.session_state.page = "Login"
         st.rerun()
 
-# -------------------------------------------------
-# Login Page
-# -------------------------------------------------
+
 def login_page():
     st.title("🔐 Login")
 
@@ -139,9 +138,7 @@ def login_page():
         st.session_state.page = "Signup"
         st.rerun()
 
-# -------------------------------------------------
-# Dashboard
-# -------------------------------------------------
+        
 def dashboard():
     st.success(f"Welcome, {st.session_state.username} 🚀")
     st.write("You are logged in successfully.")
@@ -155,10 +152,7 @@ def dashboard():
         st.session_state.username = None
         st.session_state.page = "Login"
         st.rerun()
-
-# -------------------------------------------------
-# Main Router
-# -------------------------------------------------
+        
 if not st.session_state.authenticated:
     if st.session_state.page == "Login":
         login_page()
@@ -166,3 +160,5 @@ if not st.session_state.authenticated:
         signup_page()
 else:
     dashboard()
+
+

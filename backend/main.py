@@ -9,6 +9,7 @@ from database.qdrant.vectorStore import create_vector_store
 import json
 import os 
 from database.qdrant.retrieveEmbeddings import retrieveEmbed
+from database.qdrantLongTerm.ltRetrieveEmbeddings import retrieve_user_messages_from_vector_store
 
 @traceable(name="Main Processing")
 def main(path, media, thread_id, language=None):
@@ -41,12 +42,16 @@ def main(path, media, thread_id, language=None):
             processChunks = convDoc(chunks)
 
         redis_client.set(thread_id, "creating_embeddings")
-        collection_name = thread_id
         print("TYPE:", type(chunks))
         for i, chunk in enumerate(processChunks):
             print(f"\n--- CHUNK {i} ---")
             print(repr(chunk))
-        vectorStore = create_collection_if_not_exists(collection_name, processChunks)   
+
+        for doc in processChunks:
+            doc.metadata["thread_id"] = thread_id
+            doc.metadata["user_id"] = user_id   # VERY IMPORTANT
+            doc.metadata["media_type"] = media
+        vectorStore = create_collection_if_not_exists("video_embeddings", processChunks)   
 
 
         redis_client.set(thread_id, "completed")
@@ -61,8 +66,13 @@ def main(path, media, thread_id, language=None):
 #     result = retrieveEmbed(query,qdrantVecSt)
 #     return result
 @traceable(name="Retrieve Answer")
-def retrieve_answer(query, thread_id):
-    answer = retrieveEmbed(thread_id, query)
+def retrieve_answer(query, user_id, thread_id):
+    answer = retrieveEmbed(query, user_id, thread_id)
+    return answer
+
+@traceable(name = "long term Retrieve Answer")
+def long_term_retrieve_answer(query, thread_id):
+    answer = retrieve_user_messages_from_vector_store(query)
     return answer
 
 

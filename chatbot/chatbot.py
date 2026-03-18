@@ -12,7 +12,7 @@ from typing_extensions import TypedDict
 from dotenv import load_dotenv
 from langsmith import traceable
 import os 
-from backend.main import retrieve_answer
+from backend.main import retrieve_answer,long_term_retrieve_answer
 from chatbot.prompt import prompt1,simple_chat_prompt,prompt
 from pydantic import BaseModel, Field
 
@@ -183,6 +183,12 @@ def simpleChatNode(state : ChatState):
         "messages" : [response]
     }
 
+def personalInfo(state: ChatState):
+
+    message = state["user_message"]
+
+
+
 
 # Checkpointer to save and load conversation states
 def build_chatbot(checkpointer):
@@ -223,21 +229,6 @@ def build_chatbot(checkpointer):
     graph.add_edge("tools", "chatNode")
     
     return graph.compile(checkpointer=checkpointer)
-
-#Defining functions to retrieve all threads and load conversation
-# def retrieve_all_threads(checkpointer):
-#     allThreads = []
-#     seen = set()
-
-#     for checkpoint in checkpointer.list(None):
-#         thread_id = checkpoint.config["configurable"]["thread_id"]
-#         if thread_id not in seen:
-#             seen.add(thread_id)
-#             allThreads.append(thread_id)
-
-#     return allThreads
-
-# def long_term_memory():
 
 
 def loadConv(chatBot, thread_id):

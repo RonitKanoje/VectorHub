@@ -1,26 +1,54 @@
-from fastapi import Depends, FastAPI, HTTPException, BackgroundTasks
-from git import List
-from requests import Session
-from api.schemas import AccessTokenResponse, UserCreate, UserLogin, chatName, processMedia,chatName,UserResponse,UserCreate
-from utils.hashing import hash_password, verify_password
-from database.postgres.checkpointer import get_checkpointer
-from langchain_core.messages import HumanMessage
-import json
-from backend.main import main
-from chatbot.chatbot import build_chatbot
-from api.schemas import processMedia,chatMessage
-from backend.status import redis_client
-from database.qdrant.vectorStore import create_vector_store
-from fastapi import HTTPException
-from langsmith import traceable
-from chatbot.chatbot import loadConv
-from chatbot.nameChat import title_from_message 
-from database.postgres.thread import get_db_connection, create_thread_with_title
-from psycopg.errors import UniqueViolation
-from database.postgres.userdb import UserDB, create_user, get_user_by_username,get_db
-from utils.jwt_handler import create_access_token, get_current_active_user, get_current_user
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
-from database.postgres.userdb import get_all_users
+
+from typing import List
+from sqlalchemy.orm import Session
+
+# Schemas
+from api.schemas import (
+    AccessTokenResponse,
+    UserCreate,
+    UserResponse,
+    chatName,
+    processMedia,
+    chatMessage
+)
+
+# Utils
+from utils.hashing import hash_password, verify_password
+from utils.jwt_handler import (
+    create_access_token,
+    get_current_user,
+    get_current_active_user
+)
+
+# Database
+from database.postgres.userdb import (
+    UserDB,
+    get_user_by_username,
+    get_db,
+    get_all_users
+)
+from database.postgres.checkpointer import get_checkpointer
+from database.postgres.thread import create_thread_with_title
+
+# Vector DB
+from database.qdrant.vectorStore import create_vector_store
+
+# Chatbot
+from chatbot.chatbot import build_chatbot, loadConv
+from chatbot.nameChat import title_from_message
+
+# Backend
+from backend.main import main
+from backend.status import redis_client
+
+# Other
+from langchain_core.messages import HumanMessage
+from langsmith import traceable
+from psycopg.errors import UniqueViolation
+
+import json
 
 
 app = FastAPI()
@@ -222,7 +250,7 @@ def get_profile(current_user: UserDB = Depends(get_current_active_user)):
         print("PROFILE ERROR:", e)
         raise HTTPException(status_code=500, detail="Failed to retrieve profile")
     
-    
+
 @app.get("/users",response_model=List[UserResponse])
 def get_users():
     try:
