@@ -259,3 +259,6 @@ def get_users():
     except Exception as e:
         print("USERS ERROR:", e)
         raise HTTPException(status_code=500, detail="Failed to retrieve users")
+
+
+## main

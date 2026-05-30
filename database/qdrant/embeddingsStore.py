@@ -4,7 +4,6 @@ from langchain_core.documents import Document
 from langsmith import traceable
 from database.qdrant.vectorStore import create_vector_store,client
 
-
 @traceable(name="Create Collection If Not Exists")
 def create_collection_if_not_exists(collection_name, docs):
     if not client.collection_exists(collection_name):
@@ -15,9 +14,6 @@ def create_collection_if_not_exists(collection_name, docs):
     vectorstore = create_vector_store(collection_name)
     vectorstore.add_documents(docs)
     return vectorstore
-
-
-
 
 def store_chat_embeddings(texts, user_id, thread_id):
 

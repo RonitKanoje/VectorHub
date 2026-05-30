@@ -10,6 +10,7 @@ import json
 import os 
 from database.qdrant.retrieveEmbeddings import retrieveEmbed
 from database.qdrantLongTerm.ltRetrieveEmbeddings import retrieve_user_messages_from_vector_store
+from database.qdrant.embeddingsStore import store_chat_embeddings
 
 @traceable(name="Main Processing")
 def main(path, media, thread_id, language=None):
