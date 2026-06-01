@@ -9,5 +9,5 @@ if (!process.env.MONGODB_COMPASS_URL) {
 const config = {
   MONGODB_COMPASS_URL: process.env.MONGODB_COMPASS_URL,
 };
-
+  
 export default config;

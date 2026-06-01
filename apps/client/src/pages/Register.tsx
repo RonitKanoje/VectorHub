@@ -30,7 +30,13 @@ const Register = () => {
             <div className="flex flex-col gap-4">
               <input
                 type="text"
-                placeholder="Full Name"
+                placeholder="Enter your name"
+                className="w-full h-12 px-4 bg-[#121214] border border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#00f0ff] focus:border-[#00f0ff] transition-all duration-200 placeholder-zinc-600 text-white text-sm"
+              />
+
+              <input
+                type="text"
+                placeholder="Username"
                 className="w-full h-12 px-4 bg-[#121214] border border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#00f0ff] focus:border-[#00f0ff] transition-all duration-200 placeholder-zinc-600 text-white text-sm"
               />
 
