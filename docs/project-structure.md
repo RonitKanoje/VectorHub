@@ -1,84 +1,410 @@
-# ThreadCore Structure Guide
+# ThreadCore Project Structure
 
-## What Changed
+## High-Level Architecture
 
-The repo previously mixed API code, chat logic, media processing, storage access, temp files, sample assets, and scratch scripts at the same level. The new layout separates those concerns so the project is easier to maintain and scale.
+ThreadCore is organized into three major applications:
 
-## Folder Responsibilities
+```text
+React Client
+      │
+      ▼
+Express Gateway
+      │
+      ▼
+FastAPI AI Backend
+```
 
-### `apps/`
+The frontend communicates with Express. Express handles authentication and authorization, then forwards trusted requests to FastAPI. FastAPI is responsible for AI, ingestion, retrieval, memory, and chat orchestration.
 
-- `apps/api/main.py`
-  Thin FastAPI startup entrypoint.
-- `apps/streamlit/Home.py`
-  Login and signup entrypoint for the Streamlit app.
-- `apps/streamlit/pages/01_Chat.py`
-  Main chat/upload experience.
+---
 
-### `threadcore/`
+# Project Tree
 
-- `threadcore/api/`
-  FastAPI-facing code: schemas, route modules, dependency helpers, and app assembly.
-- `threadcore/core/`
-  Shared config and authentication/security utilities.
-- `threadcore/infrastructure/`
-  External system adapters for Redis, PostgreSQL, and Qdrant.
-- `threadcore/services/`
-  Business logic for ingestion, media conversion/transcription, and chat orchestration.
-- `threadcore/ui/`
-  UI-only shared helpers such as Whisper language labels.
+```text
+ThreadCore/
+│
+├── apps/                           # Application entry points
+│   │
+│   ├── client/                     # React Frontend
+│   │   ├── pages
+│   │   ├── components
+│   │   ├── services/api
+│   │   └── ...
+│   │
+│   ├── server/                     # Express Gateway
+│   │   ├── routes
+│   │   ├── middleware
+│   │   ├── controllers
+│   │   └── ...
+│   │
+│   └── api/
+│       └── main.py                 # FastAPI startup
+│
+├── threadcore/                     # AI Backend
+│   │
+│   ├── api/                        # HTTP Layer
+│   │   ├── app.py
+│   │   ├── dependencies.py
+│   │   ├── schemas.py
+│   │   └── routes/
+│   │       ├── auth.py
+│   │       ├── chat.py
+│   │       ├── ingestion.py
+│   │       └── threads.py
+│   │
+│   ├── core/                       # Shared Configuration
+│   │   └── config.py
+│   │
+│   ├── infrastructure/             # External Systems
+│   │   ├── cache/
+│   │   │   └── redis_client.py
+│   │   │
+│   │   ├── db/
+│   │   │   ├── models.py
+│   │   │   ├── repositories.py
+│   │   │   ├── session.py
+│   │   │   └── checkpointer.py
+│   │   │
+│   │   └── vector/
+│   │       ├── qdrant.py
+│   │       ├── chat_embeddings.py
+│   │       └── long_term_memory.py
+│   │
+│   └── services/                   # Business Logic
+│       ├── chat/
+│       │   ├── graph.py
+│       │   ├── naming.py
+│       │   └── prompts.py
+│       │
+│       ├── ingestion/
+│       │   ├── pipeline.py
+│       │   └── chunking.py
+│       │
+│       └── media/
+│           ├── text.py
+│           ├── video.py
+│           └── youtube.py
+│
+├── data/
+│   ├── runtime/
+│   │   └── uploads/
+│   │
+│   └── samples/
+│
+├── scripts/
+│   └── debug/
+│       ├── chatbot_env_check.py
+│       ├── conversation_snapshot.py
+│       └── qdrant_check.py
+│
+├── tests/
+│
+└── docs/
+```
 
-### `data/`
+---
 
-- `data/runtime/`
-  Temporary uploads and generated runtime files. This should not be committed.
-- `data/samples/`
-  Sample media and JSON debug payloads that help development without polluting source folders.
+# Layer Responsibilities
 
-### `scripts/`
+## 1. apps/
 
-- `scripts/debug/`
-  One-off inspection scripts moved out of the main application package.
+Contains application entry points.
 
-### `docs/`
+### client/
 
-- Documentation about architecture and project structure.
+React frontend responsible for:
 
-## Old-to-New Mapping
+* Login and signup UI
+* Chat interface
+* Media upload interface
+* Thread management
+* Calling Express APIs
 
-| Old path | Purpose | New location |
-| --- | --- | --- |
-| `api/app.py` | FastAPI app and routes | `threadcore/api/` + `apps/api/main.py` |
-| `api/schemas.py` | Pydantic request/response models | `threadcore/api/schemas.py` |
-| `backend/main.py` | Ingestion pipeline | `threadcore/services/ingestion/pipeline.py` |
-| `backend/processing_chunks.py` | Chunk-to-document conversion | `threadcore/services/ingestion/chunking.py` |
-| `backend/textbackend/app.py` | Text splitter | `threadcore/services/media/text.py` |
-| `backend/videobackend/process_video.py` | Video/audio transcription helpers | `threadcore/services/media/video.py` |
-| `backend/ytBackend/app.py` | YouTube transcript fetcher | `threadcore/services/media/youtube.py` |
-| `backend/status.py` | Redis connection | `threadcore/infrastructure/cache/redis_client.py` |
-| `chatbot/chatbot.py` | LangGraph chatbot flow | `threadcore/services/chat/graph.py` |
-| `chatbot/nameChat.py` | Title generation | `threadcore/services/chat/naming.py` |
-| `chatbot/prompt.py` | Prompt templates | `threadcore/services/chat/prompts.py` |
-| `database/postgres/*` | Postgres access and models | `threadcore/infrastructure/db/` |
-| `database/qdrant/*` | Chat embedding storage/retrieval | `threadcore/infrastructure/vector/` |
-| `database/qdrantLongTerm/*` | Long-term memory storage/retrieval | `threadcore/infrastructure/vector/long_term_memory.py` |
-| `frontend/login.py` | Streamlit auth screen | `apps/streamlit/Home.py` |
-| `frontend/pages/app.py` | Streamlit chat page | `apps/streamlit/pages/01_Chat.py` |
-| `frontend/pages/languages.py` | Whisper language options | `threadcore/ui/streamlit/languages.py` |
-| `utils/hashing.py` | Password hashing | `threadcore/core/security.py` |
-| `utils/jwt_handler.py` | JWT auth helpers | `threadcore/core/security.py` |
-| `chatbot/check.py` | Env/debug script | `scripts/debug/chatbot_env_check.py` |
-| `chatbot/Untitled-1.py` | Conversation snapshot scratch file | `scripts/debug/conversation_snapshot.py` |
-| `database/qdrant/check.py` | Qdrant inspection script | `scripts/debug/qdrant_check.py` |
-| `docs.json`, `docs2.json`, `merge.json` | Sample/debug data | `data/samples/` |
-| `backend/videobackend/tmp/*` | Runtime uploads | `data/runtime/uploads/` |
-| `backend/videobackend/*.mp4`, `audios/output.mp3` | Sample media | `data/samples/media/` |
+### server/
 
-## Why This Is Closer To Production
+Express gateway responsible for:
 
-- Application code lives in one package instead of several unrelated top-level folders.
-- Entry points are separate from business logic.
-- Runtime files no longer sit inside source directories.
-- External systems are isolated behind infrastructure modules.
-- Scratch/debug files are clearly marked and separated from deployable code.
+* User authentication
+* JWT verification
+* Password hashing
+* Route protection
+* Forwarding requests to FastAPI
 
+### api/
+
+FastAPI startup entrypoint.
+
+Responsible for:
+
+* Starting FastAPI
+* Loading services
+* Registering routes
+* Initializing application lifecycle
+
+---
+
+## 2. threadcore/api/
+
+HTTP layer of the AI backend.
+
+### app.py
+
+Builds and configures the FastAPI application.
+
+### dependencies.py
+
+Shared route dependencies.
+
+Examples:
+
+* get_current_user
+* ensure_thread_access
+* get_chatbot
+
+### schemas.py
+
+Pydantic request and response models.
+
+### routes/
+
+Defines API endpoints.
+
+* auth.py
+* chat.py
+* ingestion.py
+* threads.py
+
+Routes should remain thin and delegate business logic to services.
+
+---
+
+## 3. threadcore/core/
+
+Shared application configuration.
+
+### config.py
+
+Contains:
+
+* Environment variables
+* Runtime paths
+* Application settings
+* Service configuration
+
+This layer is shared across the entire backend.
+
+---
+
+## 4. threadcore/services/
+
+Contains business logic.
+
+### chat/
+
+Responsible for:
+
+* LangGraph workflow
+* Prompt construction
+* Conversation management
+* Title generation
+
+### ingestion/
+
+Responsible for:
+
+* Processing uploaded content
+* Chunking documents
+* Creating embeddings
+* Storing searchable knowledge
+
+### media/
+
+Responsible for:
+
+* Video transcription
+* Audio transcription
+* YouTube transcript extraction
+* Text processing
+
+---
+
+## 5. threadcore/infrastructure/
+
+Contains integrations with external systems.
+
+### cache/
+
+Redis integration.
+
+Used for:
+
+* Upload status
+* Processing state
+* Temporary runtime information
+
+### db/
+
+PostgreSQL integration.
+
+Contains:
+
+* Database models
+* Repositories
+* Sessions
+* LangGraph checkpointer
+
+### vector/
+
+Qdrant integration.
+
+Contains:
+
+* Embedding storage
+* Similarity search
+* Long-term memory retrieval
+
+---
+
+## 6. data/
+
+Stores non-source-code data.
+
+### runtime/
+
+Temporary generated files.
+
+Examples:
+
+* Uploaded videos
+* Audio files
+* Intermediate transcripts
+
+Should not be committed.
+
+### samples/
+
+Development assets.
+
+Examples:
+
+* Sample media
+* Debug JSON payloads
+* Test files
+
+Safe to commit.
+
+---
+
+## 7. scripts/
+
+Developer utilities.
+
+Examples:
+
+* Environment validation
+* Qdrant inspection
+* Conversation inspection
+
+These are not part of the running application.
+
+---
+
+## 8. tests/
+
+Contains:
+
+* Unit tests
+* Integration tests
+* Future automated test suites
+
+---
+
+## 9. docs/
+
+Project documentation.
+
+Examples:
+
+* Architecture diagrams
+* API documentation
+* Design decisions
+* Development guides
+
+---
+
+# Request Flow
+
+## Chat Request
+
+```text
+React Client
+      │
+      ▼
+Express Gateway
+      │
+      ▼
+FastAPI Route
+      │
+      ▼
+Chat Service
+      │
+      ├── Postgres Checkpointer
+      ├── Qdrant Retrieval
+      └── Ollama
+      │
+      ▼
+Response
+```
+
+---
+
+## Media Upload
+
+```text
+React Client
+      │
+      ▼
+Express Gateway
+      │
+      ▼
+FastAPI Route
+      │
+      ▼
+Ingestion Pipeline
+      │
+      ▼
+Media Processing
+      │
+      ▼
+Chunking
+      │
+      ▼
+Embeddings
+      │
+      ▼
+Qdrant
+```
+
+---
+
+# Dependency Flow
+
+A simple rule for the project:
+
+```text
+apps
+  ↓
+api
+  ↓
+services
+  ↓
+infrastructure
+  ↓
+external systems
+```
+
+Higher layers can depend on lower layers.
+
+Lower layers should never depend on higher layers.
+
+This keeps the architecture clean, maintainable, and scalable.
