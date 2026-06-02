@@ -1,5 +1,4 @@
 from langgraph.checkpoint.postgres import PostgresSaver
-
 from threadcore.infrastructure.db.session import get_db_connection
 
 

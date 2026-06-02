@@ -1,9 +1,7 @@
 from collections.abc import Sequence
-
 from langchain_core.documents import Document
 from langsmith import traceable
 from qdrant_client.http.models import Distance, VectorParams
-
 from threadcore.infrastructure.vector.qdrant import client, create_vector_store
 
 

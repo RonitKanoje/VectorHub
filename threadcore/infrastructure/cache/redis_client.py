@@ -1,5 +1,4 @@
 import redis
-
 from threadcore.core.config import settings
 
 

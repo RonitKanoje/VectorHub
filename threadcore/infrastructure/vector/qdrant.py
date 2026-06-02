@@ -1,7 +1,6 @@
 from langchain_ollama import OllamaEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
-
 from threadcore.core.config import settings
 
 

@@ -1,5 +1,4 @@
 from langsmith import traceable
-
 from threadcore.infrastructure.cache.redis_client import redis_client
 from threadcore.infrastructure.vector.chat_embeddings import store_chat_embeddings
 from threadcore.infrastructure.vector.chat_embeddings import retrieve_chat_embeddings

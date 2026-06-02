@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from threadcore.api.routes.auth import router as auth_router
 from threadcore.api.routes.chat import router as chat_router
 from threadcore.api.routes.ingestion import router as ingestion_router
 from threadcore.api.routes.threads import router as threads_router
@@ -39,7 +38,6 @@ async def health_check():
     return {"status": "healthy"}
 
 
-app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(ingestion_router)
 app.include_router(threads_router)

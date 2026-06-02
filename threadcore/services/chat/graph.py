@@ -1,5 +1,4 @@
 from typing import Annotated, Literal
-
 from dotenv import load_dotenv
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.tools import WikipediaQueryRun
@@ -12,7 +11,6 @@ from langgraph.prebuilt import ToolNode
 from langsmith import traceable
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
-
 from threadcore.core.config import settings
 from threadcore.services.chat.prompts import prompt, prompt1, simple_chat_prompt
 from threadcore.services.ingestion.pipeline import retrieve_answer

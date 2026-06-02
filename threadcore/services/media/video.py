@@ -1,9 +1,7 @@
 import subprocess
 from pathlib import Path
-
 import torch
 import whisper
-
 from threadcore.core.config import settings
 
 

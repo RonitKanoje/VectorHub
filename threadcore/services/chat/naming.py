@@ -1,7 +1,6 @@
 from langchain_core.messages import BaseMessage
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
-
 from threadcore.core.config import settings
 from threadcore.services.chat.prompts import name_chat_prompt
 

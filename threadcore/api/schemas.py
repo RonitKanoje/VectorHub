@@ -21,20 +21,6 @@ class ChatNameRequest(BaseModel):
     thread_id: str = Field(..., description="Thread ID for chat context")
 
 
-class UserCreateRequest(BaseModel):
-    name: str = Field(..., min_length=3, max_length=50)
-    username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=8)  # Express sends the bcrypt hash here
-
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ThreadResponse(BaseModel):
     thread_id: str
     title: str
