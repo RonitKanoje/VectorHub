@@ -15,7 +15,7 @@ const PlusButton = () => {
       </button>
 
       {showOptions && (
-        <div className="absolute left-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-lg shadow-lg p-2 z-10">
+        <div className="absolute left-0 top-full mt-2 bg-white border border-zinc-200 rounded-xl shadow-xl p-2 z-10">
           <Options />
         </div>
       )}

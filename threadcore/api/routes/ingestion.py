@@ -20,7 +20,7 @@ def _resolve_user(x_user_id: str = Header(..., alias="X-User-Id")) -> str:
 @router.post("/process_media")
 async def process_media(
     payload: ProcessMediaRequest,
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks, ###
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):

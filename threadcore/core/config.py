@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+### __file__ will give exact file path Path in gives in the form of path and .resolve in the form of absolute path & [2] for parent's parent 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -31,6 +31,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    ## Using property so that it looks like a value
     @property
     def data_dir(self) -> Path:
         return BASE_DIR / "data"

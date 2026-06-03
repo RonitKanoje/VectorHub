@@ -7,4 +7,3 @@ def get_checkpointer():
     checkpointer = PostgresSaver(conn=connection)
     checkpointer.setup()
     return checkpointer
-

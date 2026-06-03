@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import otpModel from "../models/otp.model.js";
 import bcrypt from "bcrypt";
 import { sendEmail } from "../services/email.sevice.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
@@ -28,14 +29,12 @@ export async function register(req, res) {
       password: hashedPassword,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      userId: user._id,
-    });
+    console.log("1");
 
     const otp = generateOtp();
     const otpHtml = getOtpHtml(otp);
+
+    console.log("2");
 
     const bytes = await bcrypt.hash(otp, 10);
     await otpModel.create({
@@ -44,7 +43,11 @@ export async function register(req, res) {
       otpHash: bytes,
     });
 
+    console.log("3");
+
     await sendEmail(email, "OTP Verification", `Your Code is ${otp}`, otpHtml);
+
+    console.log("4");
 
     return res.status(201).json({
       success: true,
@@ -62,7 +65,7 @@ export async function register(req, res) {
   }
 }
 
-export async function verifEmail(req, res) {
+export async function verifyEmail(req, res) {
   const { email, otp } = req.body;
 
   if (!email || !otp) {

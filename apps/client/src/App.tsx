@@ -2,11 +2,18 @@
 import Otp from "./pages/Otp";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat";
+import { Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
 
 const App = () => {
   return (
     <div>
-      <Chat />
+      <Routes>
+        <Route path="/" element={<Home />}></Route>
+        <Route path="/register" element={<Register />}></Route>
+        <Route path="/login/otp" element={<Otp />}></Route>
+        <Route path="/chat" element={<Chat />}></Route>
+      </Routes>
     </div>
   );
 };
