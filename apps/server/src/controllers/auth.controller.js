@@ -5,8 +5,11 @@ import { sendEmail } from "../services/email.sevice.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import jwt from "jsonwebtoken";
 import verificationToken from "../models/verificationToken.model.js";
+import Account from "../models/account.model.js";
+import Session from "../models/session.model.js";
 import { generalState, generateCodeVerifier } from "arctic";
 import { OAUTH_EXCHANGE_EXPIRY } from "../config/constants.js";
+import { google } from "../oauth/google.js";
 
 export async function register(req, res) {
   try {
@@ -381,33 +384,199 @@ export async function logoutAll(req, res) {
 
 // get google login page basically we will be fetching all email Id of a particular USer
 export const googleLoginPage = async (req, res) => {
-  const state = generalState();
-  const codeVerifier = generalCodeVerifier();
+  try {
+    const state = generalState();
+    const codeVerifier = generateCodeVerifier();
 
-  // basically we are fetching user email with the help of our client
-  const url = google.createAuthorizationURL(state, codeVerifier, [
-    "email",
-    "profile",
-    "email",
-  ]);
+    // basically we are fetching user email with the help of our client
+    const url = google.createAuthorizationURL(state, codeVerifier, [
+      "email",
+      "profile",
+    ]);
 
-  const cookieConfig = {
-    http: true,
-    secure: true,
-    maxAge: OAUTH_EXCHANGE_CONFIG,
-    sameSite: "lax",
-  };
+    const cookieConfig = {
+      httpOnly: true,
+      secure: true,
+      maxAge: OAUTH_EXCHANGE_EXPIRY,
+      sameSite: "lax",
+    };
 
-  res.cookie("google_oauth_state", state, cookieConfig);
-  res.cookie("google_code_verifier", codeVerifier, cookieConfig);
+    res.cookie("google_oauth_state", state, cookieConfig);
+    res.cookie("google_code_verifier", codeVerifier, cookieConfig);
 
-  res.redirect(url.toString());
+    res.redirect(url.toString());
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to initiate Google login",
+    });
+  }
 };
 
 export const getGoogleLoginCallBack = async (req, res) => {
-  const { code, state } = req.query;
+  try {
+    const { code, state } = req.query;
 
-  const { google_oauth_state, google_oauth_verifier } = req.cookies;
+    const { google_oauth_state, google_code_verifier } = req.cookies;
 
-  
+    if (
+      !code ||
+      !state ||
+      !google_oauth_state ||
+      !google_code_verifier ||
+      state !== google_oauth_state
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Login Attempt",
+      });
+    }
+
+    let tokens;
+    try {
+      tokens = await google.validateAuthorizationCode(
+        code,
+        google_code_verifier,
+      );
+    } catch (error) {
+      console.error(error);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Login Attempt",
+      });
+    }
+
+    // Decode the ID token to get user claims
+    const idToken = tokens.idToken();
+    const claims = jwt.decode(idToken);
+    const { sub: googleUserId, name, email } = claims;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to retrieve email from Google",
+      });
+    }
+
+    // Condition 1: User already exists with Google OAuth linked
+    let account = await Account.findOne({
+      provider: "google",
+      providerAccountId: googleUserId,
+    }).populate("userId");
+
+    if (account && account.userId) {
+      // User exists with Google OAuth - sign them in
+      const user = account.userId;
+
+      const accessToken = await generateToken(user._id, "15m");
+      const refreshToken = await generateToken(user._id, "7d");
+      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+      await Session.create({
+        user: user._id,
+        refreshTokenHash,
+        ip: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      // Clear OAuth cookies
+      res.clearCookie("google_oauth_state");
+      res.clearCookie("google_code_verifier");
+
+      return res.status(200).json({
+        success: true,
+        message: "Login successful",
+        accessToken,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+        },
+      });
+    }
+
+    // Condition 2: User exists with same email but Google OAuth not linked
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Link Google OAuth to existing account
+      await Account.create({
+        userId: user._id,
+        provider: "google",
+        providerAccountId: googleUserId,
+      });
+
+      const accessToken = await generateToken(user._id, "15m");
+      const refreshToken = await generateToken(user._id, "7d");
+      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+      await Session.create({
+        user: user._id,
+        refreshTokenHash,
+        ip: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      // Clear OAuth cookies
+      res.clearCookie("google_oauth_state");
+      res.clearCookie("google_code_verifier");
+
+      return res.status(200).json({
+        success: true,
+        message: "Google OAuth linked and login successful",
+        accessToken,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+        },
+      });
+    }
+
+    // Condition 3: User doesn't exist - redirect to registration with pre-filled data
+    // Encode the data to pass to registration page
+    const registrationData = btoa(
+      JSON.stringify({
+        email,
+        name,
+        googleUserId,
+      }),
+    );
+
+    // Clear OAuth cookies
+    res.clearCookie("google_oauth_state");
+    res.clearCookie("google_code_verifier");
+
+    return res.status(200).json({
+      success: false,
+      message: "User not found. Please register.",
+      redirect: true,
+      registerData: registrationData,
+      userData: {
+        email,
+        name,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
 };
