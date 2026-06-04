@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import OTPInput from "../components/OTPInput";
+import axios from "axios";
 
 const Otp = () => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -9,6 +10,7 @@ const Otp = () => {
   const handleSubmit = () => {
     const finalOtp = otp.join("");
     console.log(finalOtp);
+    axios.post
     navigate("/chat");
   };
 

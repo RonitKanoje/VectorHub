@@ -37,10 +37,8 @@ router.get("/logoutAll", authController.logoutAll);
 
 router.get("/refresh-token", authController.refreshToken);
 
-router.get("/", (req, res) => {
-    res.json({
-        "message" : "Connected with Backend"
-    })
-});
+router.get("/google", authController.getGoogleLoginPage);
+
+router.get("google/callback", authController.getGoogleLoginCallBack);
 
 export default router;

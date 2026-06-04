@@ -2,14 +2,36 @@ import { useState } from "react";
 import AuthHeader from "./AuthHeader";
 import AuthFooter from "./AuthFooter";
 import AnimatedCard from "./AnimatedCard";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 interface LoginFormProps {
   onRegisterClick: () => void;
 }
 
 const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+
+  const navigate = useNavigate();
+
+  const verify = async () => {
+    try {
+      const response = await axios.post(
+        "http://localhost:3000/api/auth/login",
+        {
+          username,
+          password,
+        },
+      );
+
+      toast.success("Login successful");
+      navigate("/login/otp");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Something went wrong");
+    }
+  };
 
   return (
     <AnimatedCard>
@@ -37,7 +59,12 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
         />
 
         {/* Login Button */}
-        <button className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold rounded-xl transition-all duration-200 active:scale-[0.95] cursor-pointer text-sm">
+        <button
+          className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold rounded-xl transition-all duration-200 active:scale-[0.95] cursor-pointer text-sm"
+          onClick={() => {
+            verify();
+          }}
+        >
           Login
         </button>
       </div>

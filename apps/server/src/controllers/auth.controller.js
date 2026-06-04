@@ -4,10 +4,62 @@ import bcrypt from "bcrypt";
 import { sendEmail } from "../services/email.sevice.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import jwt from "jsonwebtoken";
+import verificationToken from "../models/verificationToken.model.js";
+import { generalState, generateCodeVerifier } from "arctic";
+import { OAUTH_EXCHANGE_EXPIRY } from "../config/constants.js";
 
 export async function register(req, res) {
   try {
-    const { name, username, email, password } = req.body;
+    const { name, username, email, password, confirmPassword } = req.body;
+
+    const requiredFields = {
+      name,
+      username,
+      email,
+      password,
+      confirmPassword,
+    };
+
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (!value || value.trim() === "") {
+        return res.status(400).json({
+          success: false,
+          message: `${field} is required`,
+        });
+      }
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
+      });
+    }
+
+    const paaswordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character",
+      });
+    }
+
+    if (username.includes(" ")) {
+      return res.status(400).json({
+        success: false,
+        message: "Username cannot contain spaces",
+      });
+    }
+
+    if (password.includes(" ")) {
+      return res.status(400).json({
+        success: false,
+        message: "Password cannot contain spaces",
+      });
+    }
 
     const isAlreadyRegistered = await User.findOne({
       $or: [{ email }, { username }],
@@ -29,12 +81,8 @@ export async function register(req, res) {
       password: hashedPassword,
     });
 
-    console.log("1");
-
     const otp = generateOtp();
     const otpHtml = getOtpHtml(otp);
-
-    console.log("2");
 
     const bytes = await bcrypt.hash(otp, 10);
     await otpModel.create({
@@ -43,11 +91,16 @@ export async function register(req, res) {
       otpHash: bytes,
     });
 
-    console.log("3");
+    const verificationToken = crypto.randomUUID();
+
+    await verificationToken.create({
+      user: user._id,
+      otpHash: bytes,
+      verificationToken,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
 
     await sendEmail(email, "OTP Verification", `Your Code is ${otp}`, otpHtml);
-
-    console.log("4");
 
     return res.status(201).json({
       success: true,
@@ -66,38 +119,64 @@ export async function register(req, res) {
 }
 
 export async function verifyEmail(req, res) {
-  const { email, otp } = req.body;
+  try {
+    const { verificationToken, otp } = req.body;
 
-  if (!email || !otp) {
-    return res.status(400).json({
+    if (!verificationToken || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification token and OTP are required",
+      });
+    }
+
+    const verificationRecord = await verificationTokenModel.findOne({
+      verificationToken,
+    });
+
+    if (!verificationRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Verification token expired or invalid",
+      });
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, verificationRecord.otpHash);
+
+    if (!isOtpValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+      });
+    }
+
+    const user = await User.findById(verificationRecord.user);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.isVerified = true;
+    await user.save();
+
+    await verificationTokenModel.deleteOne({
+      _id: verificationRecord._id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully",
+    });
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
       success: false,
-      message: "Email and OTP are required",
+      message: "Internal Server Error",
     });
   }
-
-  const otpEntry = await otpModel.findOne({ email }).sort({ createdAt: -1 });
-
-  if (!otpEntry) {
-    return res.status(400).json({ message: "OTP not found or expired" });
-  }
-  const otpHash = bcrypt.compare(otp, otpEntry.otpHash);
-
-  if (!otpHash) {
-    return res.status(400).json({ message: "Invalid OTP" });
-  }
-
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    return res.status(400).json({ message: "User not found" });
-  }
-
-  user.isVerified = true;
-  await user.save();
-
-  await otpModel.deleteMany({ email });
-
-  return res.status(200).json({ message: "Email verified successfully" });
 }
 
 export async function generateToken(userId, expiresIn) {
@@ -109,15 +188,37 @@ export async function generateToken(userId, expiresIn) {
 // login
 export async function login(req, res) {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) {
+    if (!username) {
       return res.status(400).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Please enter your username",
       });
     }
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter your password",
+      });
+    }
+
+    if (username.includes(" ")) {
+      return res.status(400).json({
+        success: false,
+        message: "Username cannot contain spaces",
+      });
+    }
+
+    if (password.includes(" ")) {
+      return res.status(400).json({
+        success: false,
+        message: "Password cannot contain spaces",
+      });
+    }
+
+    const user = await User.findOne({ username });
+
     if (!user.isVerified) {
       return res.status(400).json({
         success: false,
@@ -277,3 +378,36 @@ export async function logoutAll(req, res) {
     message: "Logged out from all devices successfully",
   });
 }
+
+// get google login page basically we will be fetching all email Id of a particular USer
+export const googleLoginPage = async (req, res) => {
+  const state = generalState();
+  const codeVerifier = generalCodeVerifier();
+
+  // basically we are fetching user email with the help of our client
+  const url = google.createAuthorizationURL(state, codeVerifier, [
+    "email",
+    "profile",
+    "email",
+  ]);
+
+  const cookieConfig = {
+    http: true,
+    secure: true,
+    maxAge: OAUTH_EXCHANGE_CONFIG,
+    sameSite: "lax",
+  };
+
+  res.cookie("google_oauth_state", state, cookieConfig);
+  res.cookie("google_code_verifier", codeVerifier, cookieConfig);
+
+  res.redirect(url.toString());
+};
+
+export const getGoogleLoginCallBack = async (req, res) => {
+  const { code, state } = req.query;
+
+  const { google_oauth_state, google_oauth_verifier } = req.cookies;
+
+  
+};

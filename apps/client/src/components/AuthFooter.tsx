@@ -4,6 +4,7 @@ interface AuthFooterProps {
   onLinkClick: () => void;
 }
 
+
 const AuthFooter = ({ question, linkText, onLinkClick }: AuthFooterProps) => {
   return (
     <div className="mt-6 text-center">

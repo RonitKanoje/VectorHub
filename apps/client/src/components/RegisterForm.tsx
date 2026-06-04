@@ -2,6 +2,8 @@ import { useState } from "react";
 import AuthHeader from "./AuthHeader";
 import AuthFooter from "./AuthFooter";
 import AnimatedCard from "./AnimatedCard";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 interface RegisterFormProps {
   onLoginClick: () => void;
@@ -13,6 +15,26 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const navigate = useNavigate();
+
+  const register = async () => {
+    try {
+      const response = await axios.post(
+        "http://localhost:3000/api/auth/register",
+        {
+          name,
+          username,
+          email,
+          password,
+        },
+      );
+      navigate("/");
+      console.log(response);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <AnimatedCard>
@@ -66,7 +88,12 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
         </div>
 
         {/* Create Account Button */}
-        <button className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold rounded-xl transition-all duration-200 active:scale-[0.97] cursor-pointer text-sm mt-2">
+        <button
+          className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold rounded-xl transition-all duration-200 active:scale-[0.97] cursor-pointer text-sm mt-2"
+          onClick={() => {
+            register();
+          }}
+        >
           Create Account
         </button>
       </div>
