@@ -1,15 +1,16 @@
 import User from "../models/user.model.js";
 import otpModel from "../models/otp.model.js";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { sendEmail } from "../services/email.sevice.js";
 import { generateOtp, getOtpHtml } from "../utils/utils.js";
 import jwt from "jsonwebtoken";
 import verificationToken from "../models/verificationToken.model.js";
 import Account from "../models/account.model.js";
 import Session from "../models/session.model.js";
-import { generalState, generateCodeVerifier } from "arctic";
 import { OAUTH_EXCHANGE_EXPIRY } from "../config/constants.js";
 import { google } from "../oauth/google.js";
+import config from "../config/config.js";
 
 export async function register(req, res) {
   try {
@@ -19,8 +20,6 @@ export async function register(req, res) {
       name,
       username,
       email,
-      password,
-      confirmPassword,
     };
 
     for (const [field, value] of Object.entries(requiredFields)) {
@@ -32,6 +31,13 @@ export async function register(req, res) {
       }
     }
 
+    if (!password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
+      });
+    }
+
     if (password !== confirmPassword) {
       return res.status(400).json({
         success: false,
@@ -39,7 +45,7 @@ export async function register(req, res) {
       });
     }
 
-    const paaswordRegex =
+    const passwordRegex =
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
     if (!passwordRegex.test(password)) {
@@ -94,16 +100,21 @@ export async function register(req, res) {
       otpHash: bytes,
     });
 
-    const verificationToken = crypto.randomUUID();
+    const verificationTokenValue = crypto.randomUUID();
 
     await verificationToken.create({
       user: user._id,
       otpHash: bytes,
-      verificationToken,
+      verificationToken: verificationTokenValue,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    await sendEmail(email, "OTP Verification", `Your Code is ${otp}`, otpHtml);
+    await sendEmail(
+      email,
+      "OTP Verification",
+      `Your Code is ${otp}`,
+      otpHtml,
+    );
 
     return res.status(201).json({
       success: true,
@@ -382,10 +393,33 @@ export async function logoutAll(req, res) {
   });
 }
 
+// Helper function to generate code verifier for PKCE
+function generateCodeVerifier() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function shouldReturnJson(req) {
+  const accept = req.get("Accept") || "";
+  return (
+    req.xhr ||
+    (accept.includes("application/json") && !accept.includes("text/html"))
+  );
+}
+
+function buildClientRedirect(path, params) {
+  const url = new URL(path, config.CLIENT_URL);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return url.toString();
+}
+
 // get google login page basically we will be fetching all email Id of a particular USer
 export const googleLoginPage = async (req, res) => {
   try {
-    const state = generalState();
+    const state = crypto.randomUUID();
     const codeVerifier = generateCodeVerifier();
 
     // basically we are fetching user email with the help of our client
@@ -396,7 +430,7 @@ export const googleLoginPage = async (req, res) => {
 
     const cookieConfig = {
       httpOnly: true,
-      secure: true,
+      secure: config.NODE_ENV === "production",
       maxAge: OAUTH_EXCHANGE_EXPIRY,
       sameSite: "lax",
     };
@@ -490,7 +524,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
       res.clearCookie("google_oauth_state");
       res.clearCookie("google_code_verifier");
 
-      return res.status(200).json({
+      const payload = {
         success: true,
         message: "Login successful",
         accessToken,
@@ -500,7 +534,19 @@ export const getGoogleLoginCallBack = async (req, res) => {
           email: user.email,
           username: user.username,
         },
-      });
+      };
+
+      if (!shouldReturnJson(req)) {
+        return res.redirect(
+          buildClientRedirect("/oauth/callback", {
+            status: "success",
+            message: payload.message,
+            accessToken,
+          }),
+        );
+      }
+
+      return res.status(200).json(payload);
     }
 
     // Condition 2: User exists with same email but Google OAuth not linked
@@ -508,11 +554,24 @@ export const getGoogleLoginCallBack = async (req, res) => {
 
     if (user) {
       // Link Google OAuth to existing account
-      await Account.create({
-        userId: user._id,
-        provider: "google",
-        providerAccountId: googleUserId,
-      });
+      await Account.findOneAndUpdate(
+        {
+          provider: "google",
+          providerAccountId: googleUserId,
+        },
+        {
+          $setOnInsert: {
+            userId: user._id,
+            provider: "google",
+            providerAccountId: googleUserId,
+          },
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        },
+      );
 
       const accessToken = await generateToken(user._id, "15m");
       const refreshToken = await generateToken(user._id, "7d");
@@ -535,7 +594,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
       res.clearCookie("google_oauth_state");
       res.clearCookie("google_code_verifier");
 
-      return res.status(200).json({
+      const payload = {
         success: true,
         message: "Google OAuth linked and login successful",
         accessToken,
@@ -545,33 +604,41 @@ export const getGoogleLoginCallBack = async (req, res) => {
           email: user.email,
           username: user.username,
         },
-      });
-    }
+      };
 
-    // Condition 3: User doesn't exist - redirect to registration with pre-filled data
-    // Encode the data to pass to registration page
-    const registrationData = btoa(
-      JSON.stringify({
-        email,
-        name,
-        googleUserId,
-      }),
-    );
+      if (!shouldReturnJson(req)) {
+        return res.redirect(
+          buildClientRedirect("/oauth/callback", {
+            status: "success",
+            message: payload.message,
+            accessToken,
+          }),
+        );
+      }
+
+      return res.status(200).json(payload);
+    }
 
     // Clear OAuth cookies
     res.clearCookie("google_oauth_state");
     res.clearCookie("google_code_verifier");
 
-    return res.status(200).json({
+    const payload = {
       success: false,
-      message: "User not found. Please register.",
+      message: "Please register before using Google sign in.",
       redirect: true,
-      registerData: registrationData,
-      userData: {
-        email,
-        name,
-      },
-    });
+    };
+
+    if (!shouldReturnJson(req)) {
+      return res.redirect(
+        buildClientRedirect("/oauth/callback", {
+          status: "register",
+          message: payload.message,
+        }),
+      );
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     console.error(error);
     return res.status(500).json({

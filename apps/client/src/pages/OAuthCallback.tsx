@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import axios from "axios";
 import toast from "react-hot-toast";
+import api from "../services/api";
 
 const OAuthCallback = () => {
   const navigate = useNavigate();
@@ -11,8 +11,24 @@ const OAuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        const status = searchParams.get("status");
+        const accessToken = searchParams.get("accessToken");
+        const message = searchParams.get("message");
+
+        if (status === "success" && accessToken) {
+          toast.success(message || "Login successful");
+          localStorage.setItem("accessToken", accessToken);
+          navigate("/chat");
+          return;
+        }
+
+        if (status === "register") {
+          toast.error(message || "Please register before using Google sign in");
+          navigate("/register");
+          return;
+        }
+
         // The OAuth callback is handled by the backend
-        // The backend will redirect here if user needs to register
         const code = searchParams.get("code");
         const state = searchParams.get("state");
 
@@ -20,13 +36,9 @@ const OAuthCallback = () => {
           throw new Error("Missing OAuth parameters");
         }
 
-        // The backend handles the full OAuth flow
-        // Check if we have registration data in the response
-        const response = await axios.get(
-          `http://localhost:3000/api/auth/google/callback?code=${code}&state=${state}`,
-          {
-            withCredentials: true,
-          },
+        // The backend handles the full OAuth flow and returns the response
+        const response = await api.get(
+          `/api/auth/google/callback?code=${code}&state=${state}`,
         );
 
         if (response.data.success) {
@@ -35,14 +47,8 @@ const OAuthCallback = () => {
           localStorage.setItem("accessToken", response.data.accessToken);
           navigate("/chat");
         } else if (response.data.redirect) {
-          // User doesn't exist, redirect to registration with pre-filled data
-          navigate("/register", {
-            state: {
-              email: response.data.userData.email,
-              name: response.data.userData.name,
-              googleUserId: response.data.userData.googleUserId,
-            },
-          });
+          // User doesn't exist, redirect to manual registration.
+          navigate("/register");
         }
       } catch (error: any) {
         console.error(error);

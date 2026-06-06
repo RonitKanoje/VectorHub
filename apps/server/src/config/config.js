@@ -30,8 +30,10 @@ const config = {
   GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
   GOOGLE_CWT_CLIENT_SECRET:
     process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_SECRET,
-  GOOGLE_CWT_CLENT_ID: process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID,
+  GOOGLE_CWT_CLIENT_ID: process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID,
 
+  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
+  NODE_ENV: process.env.NODE_ENV || "development",
   PORT: process.env.PORT || 3000,
 };
 

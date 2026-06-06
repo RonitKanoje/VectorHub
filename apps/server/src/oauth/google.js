@@ -1,11 +1,8 @@
 import { Google } from "arctic";
-import {
-  GOOGLE_CWT_CLIENT_SECRET,
-  GOOGLE_CWT_CLIENT_ID,
-} from "../config/config";
+import config from "../config/config.js";
 
 export const google = new Google(
-  GOOGLE_CWT_CLIENT_SECRET,
-  GOOGLE_CWT_CLIENT_ID,
-  "http://localhost:3000/callback",
+  config.GOOGLE_CWT_CLIENT_ID,
+  config.GOOGLE_CWT_CLIENT_SECRET,
+  "http://localhost:3000/api/auth/google/callback",
 );

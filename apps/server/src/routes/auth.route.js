@@ -37,8 +37,8 @@ router.get("/logoutAll", authController.logoutAll);
 
 router.get("/refresh-token", authController.refreshToken);
 
-router.get("/google", authController.getGoogleLoginPage);
+router.get("/google", authController.googleLoginPage);
 
-router.get("google/callback", authController.getGoogleLoginCallBack);
+router.get("/google/callback", authController.getGoogleLoginCallBack);
 
 export default router;
