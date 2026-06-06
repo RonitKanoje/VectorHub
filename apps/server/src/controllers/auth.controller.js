@@ -70,17 +70,23 @@ export async function register(req, res) {
       });
     }
 
-    const isAlreadyRegistered = await User.findOne({
-      $or: [{ email }, { username }],
-    });
+    const isAlreadyUsername = await User.findOne({ username });
 
-    if (isAlreadyRegistered) {
+    const isAlreadyEmail = await User.findOne({ email });
+
+    if (isAlreadyUsername) {
       return res.status(400).json({
         success: false,
-        message: "User already exists",
+        message: "Username already exists",
       });
     }
 
+    if (isAlreadyEmail) {
+      return res.status(400).json({
+        success: false,
+        message: "Account with this email already exist try to login",
+      });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -109,12 +115,14 @@ export async function register(req, res) {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    await sendEmail(
-      email,
-      "OTP Verification",
-      `Your Code is ${otp}`,
-      otpHtml,
-    );
+    res.cookie("verificationToken", verificationTokenValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 10 * 60 * 1000,
+    });
+
+    await sendEmail(email, "OTP Verification", `Your Code is ${otp}`, otpHtml);
 
     return res.status(201).json({
       success: true,
@@ -134,17 +142,19 @@ export async function register(req, res) {
 
 export async function verifyEmail(req, res) {
   try {
-    const { verificationToken, otp } = req.body;
+    const { otp } = req.body;
 
-    if (!verificationToken || !otp) {
+    if (!otp) {
       return res.status(400).json({
         success: false,
-        message: "Verification token and OTP are required",
+        message: "OTP is required",
       });
     }
 
-    const verificationRecord = await verificationTokenModel.findOne({
-      verificationToken,
+    const cookieToken = req.cookies.verificationToken;
+
+    const verificationRecord = await verificationToken.findOne({
+      verificationToken: cookieToken,
     });
 
     if (!verificationRecord) {
@@ -175,9 +185,16 @@ export async function verifyEmail(req, res) {
     user.isVerified = true;
     await user.save();
 
-    await verificationTokenModel.deleteOne({
-      _id: verificationRecord._id,
-    });
+    if (verificationRecord.expiresAt < new Date()) {
+      await verificationToken.deleteOne({
+        _id: verificationRecord._id,
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: "Verification token expired",
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -232,6 +249,13 @@ export async function login(req, res) {
     }
 
     const user = await User.findOne({ username });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid username or password",
+      });
+    }
 
     if (!user.isVerified) {
       return res.status(400).json({
@@ -398,8 +422,11 @@ function generateCodeVerifier() {
   return crypto.randomBytes(32).toString("base64url");
 }
 
+// it will handle future json request as well
+
 function shouldReturnJson(req) {
   const accept = req.get("Accept") || "";
+  // for browser url req.xhr is false and for axios req.xhr is true
   return (
     req.xhr ||
     (accept.includes("application/json") && !accept.includes("text/html"))
@@ -416,13 +443,11 @@ function buildClientRedirect(path, params) {
   return url.toString();
 }
 
-// get google login page basically we will be fetching all email Id of a particular USer
 export const googleLoginPage = async (req, res) => {
   try {
-    const state = crypto.randomUUID();
-    const codeVerifier = generateCodeVerifier();
+    const state = crypto.randomUUID(); // To protect against CSRF attacks.
+    const codeVerifier = generateCodeVerifier(); //PKCE
 
-    // basically we are fetching user email with the help of our client
     const url = google.createAuthorizationURL(state, codeVerifier, [
       "email",
       "profile",

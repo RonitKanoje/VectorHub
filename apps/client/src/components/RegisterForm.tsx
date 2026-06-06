@@ -46,7 +46,7 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
 
       if (response.data.success) {
         toast.success("Account created successfully!");
-        navigate("/");
+        navigate("/register/otp");
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Registration failed");

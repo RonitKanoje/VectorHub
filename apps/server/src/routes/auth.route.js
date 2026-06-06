@@ -9,7 +9,7 @@ const router = express.Router();
 router.post("/register", authController.register);
 
 /**
- * - route POST /api/auth/verifyEmail
+ * - route POST /api/auth/verify
  */
 
 router.post("/verify", authController.verifyEmail);

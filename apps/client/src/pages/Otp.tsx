@@ -2,16 +2,31 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import OTPInput from "../components/OTPInput";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const Otp = () => {
+  const [error, setError] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const navigate = useNavigate();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const finalOtp = otp.join("");
     console.log(finalOtp);
-    axios.post
-    navigate("/chat");
+    try {
+      await axios.post(
+        "http://localhost:3000/api/auth/verify",
+        { otp: finalOtp },
+        {
+          withCredentials: true,
+        },
+      );
+      navigate("/chat");
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Invalid OTP";
+
+      setError(message);
+      // toast.error(message);
+    }
   };
 
   return (
@@ -24,6 +39,11 @@ const Otp = () => {
         </p>
 
         <OTPInput otp={otp} setOtp={setOtp} />
+        {error && (
+          <div>
+            <p className="text-red-700"> Invalid Otp </p>
+          </div>
+        )}
 
         <button
           onClick={handleSubmit}

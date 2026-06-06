@@ -14,7 +14,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Home />}></Route>
         <Route path="/register" element={<Register />}></Route>
-        <Route path="/login/otp" element={<Otp />}></Route>
+        <Route path="/register/otp" element={<Otp />}></Route>
         <Route path="/chat" element={<Chat />}></Route>
         <Route path="/oauth/callback" element={<OAuthCallback />}></Route>
       </Routes>
