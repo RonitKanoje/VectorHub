@@ -25,7 +25,7 @@ const Otp = () => {
       const message = error.response?.data?.message || "Invalid OTP";
 
       setError(message);
-      // toast.error(message);
+      toast.error(message);
     }
   };
 

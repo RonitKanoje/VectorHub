@@ -6,6 +6,9 @@ import api from "../services/api";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FcGoogle } from "react-icons/fc";
+import { useDispatch, useSelector } from "react-redux";
+import type { AppDispatch, RootState } from "../redux/store";
+import { setCredentials } from "../redux/features/authSlice";
 
 interface LoginFormProps {
   onRegisterClick: () => void;
@@ -14,6 +17,8 @@ interface LoginFormProps {
 const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
   const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+
+  const dispatch = useDispatch<AppDispatch>();
 
   const navigate = useNavigate();
 
@@ -25,7 +30,9 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
       });
 
       toast.success("Login successful");
-      localStorage.setItem("accessToken", response.data.accessToken);
+
+      dispatch(setCredentials(response.data.accessToken));
+
       navigate("/login/otp");
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");

@@ -6,6 +6,7 @@ import OAuthCallback from "./pages/OAuthCallback";
 import { Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import { Toaster } from "react-hot-toast";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const App = () => {
   return (
@@ -15,7 +16,14 @@ const App = () => {
         <Route path="/" element={<Home />}></Route>
         <Route path="/register" element={<Register />}></Route>
         <Route path="/register/otp" element={<Otp />}></Route>
-        <Route path="/chat" element={<Chat />}></Route>
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/oauth/callback" element={<OAuthCallback />}></Route>
       </Routes>
     </div>
