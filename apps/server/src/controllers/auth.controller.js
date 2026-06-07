@@ -210,10 +210,9 @@ export async function verifyEmail(req, res) {
   }
 }
 
-export async function generateToken(userId, expiresIn) {
+export async function generateToken(payload, expiresIn) {
   // Implementation for generating token
-
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: expiresIn });
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: expiresIn });
 }
 
 // login
@@ -264,27 +263,42 @@ export async function login(req, res) {
       });
     }
 
-    const hashedPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
-    if (!hashedPassword) {
+    if (!isValidPassword) {
       return res.status(400).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Invalid password",
       });
     }
 
-    const refreshToken = await generateToken(user._id, "7d");
-
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
     const session = await Session.create({
       user: user._id,
-      refreshTokenHash,
+      refreshTokenHash: "pending", // temporary value
       ip: req.ip,
       userAgent: req.get("User-Agent"),
     });
 
-    const accessToken = await generateToken(user._id, "15m");
+    const refreshToken = await generateToken(
+      {
+        userId: user._id,
+        sessionId: session._id,
+      },
+      "7d",
+    );
+
+    const accessToken = await generateToken(
+      {
+        userId: user._id,
+      },
+      "15m",
+    );
+
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+    session.refreshTokenHash = refreshTokenHash;
+
+    await session.save();
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -319,11 +333,9 @@ export async function refreshToken(req, res) {
 
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
     const session = await Session.findOne({
       user: decoded.userId,
-      refreshTokenHash,
+      _id: decoded.sessionId,
       revoked: false,
     });
 
@@ -334,17 +346,38 @@ export async function refreshToken(req, res) {
       });
     }
 
-    const accessToken = await generateToken(decoded.userId, "15m");
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
 
-    const newRefreshToken = await generateToken(decoded.userId, "7d");
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token",
+      });
+    }
+
+    const accessToken = await generateToken({ userId: decoded.userId }, "15m");
+
+    const newRefreshToken = await generateToken(
+      { userId: decoded.userId, sessionId: session._id },
+      "7d",
+    );
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
     session.refreshTokenHash = newRefreshTokenHash;
     await session.save();
 
-    res.cookie("refreshToken", newRefreshToken, {
+    res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      accessToken,
     });
   } catch (error) {
     console.error(error);

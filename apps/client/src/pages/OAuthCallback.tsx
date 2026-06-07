@@ -29,7 +29,7 @@ const OAuthCallback = () => {
     }
 
     navigate("/");
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, dispatch]);
 
   return null;
 };
