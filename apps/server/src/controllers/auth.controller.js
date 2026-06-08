@@ -561,16 +561,32 @@ export const getGoogleLoginCallBack = async (req, res) => {
       // User exists with Google OAuth - sign them in
       const user = account.userId;
 
-      const accessToken = await generateToken(user._id, "15m");
-      const refreshToken = await generateToken(user._id, "7d");
-      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
-      await Session.create({
+      const session = await Session.create({
         user: user._id,
-        refreshTokenHash,
+        refreshTokenHash: "pending",
         ip: req.ip,
         userAgent: req.get("User-Agent"),
       });
+
+      const refreshToken = await generateToken(
+        {
+          userId: user._id,
+          sessionId: session._id,
+        },
+        "7d",
+      );
+
+      const accessToken = await generateToken(
+        {
+          userId: user._id,
+        },
+        "15m",
+      );
+
+      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+      session.refreshTokenHash = refreshTokenHash;
+      await session.save();
 
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
@@ -631,16 +647,32 @@ export const getGoogleLoginCallBack = async (req, res) => {
         },
       );
 
-      const accessToken = await generateToken(user._id, "15m");
-      const refreshToken = await generateToken(user._id, "7d");
-      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
-      await Session.create({
+      const session = await Session.create({
         user: user._id,
-        refreshTokenHash,
+        refreshTokenHash: "pending",
         ip: req.ip,
         userAgent: req.get("User-Agent"),
       });
+
+      const refreshToken = await generateToken(
+        {
+          userId: user._id,
+          sessionId: session._id,
+        },
+        "7d",
+      );
+
+      const accessToken = await generateToken(
+        {
+          userId: user._id,
+        },
+        "15m",
+      );
+
+      const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+      session.refreshTokenHash = refreshTokenHash;
+      await session.save();
 
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,

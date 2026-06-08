@@ -6,10 +6,18 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const token = useSelector((state: RootState) => state.auth.accessToken); // see here we did't give the type of token since we did , export type RootState = ReturnType<typeof store.getState>;
+const ProtectedRoute = ({
+  children,
+}: ProtectedRouteProps) => {
+  const { accessToken, isLoading } = useSelector(
+    (state: RootState) => state.auth
+  );
 
-  if (!token) {
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!accessToken) {
     return <Navigate to="/" replace />;
   }
 

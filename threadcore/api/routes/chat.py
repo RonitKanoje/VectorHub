@@ -16,17 +16,17 @@ router = APIRouter(tags=["chat"])
 
 def _resolve_user(x_user_id: str = Header(..., alias="X-User-Id")) -> str:
     """Get current user ID from header"""
-    return get_current_user(x_user_id=x_user_id)
+    return get_current_user(x_user_id=x_user_id) ## it will return the current user 
 
 
 @router.post("/chat")
 async def chat(
-    chat_message: ChatMessageRequest,
-    current_user: str = Depends(_resolve_user),
+    chat_message: ChatMessageRequest, ## schema
+    current_user: str = Depends(_resolve_user), ##get current user
     chatbot=Depends(get_chatbot),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), ## db
 ):
-    ensure_thread_access(db, chat_message.thread_id, current_user)
+    ensure_thread_access(db, chat_message.thread_id, current_user)  ## ensures that thread id belongs to a particular user 
 
     status = redis_client.get(chat_message.thread_id)
     if not status:
@@ -58,12 +58,12 @@ async def load_conv(
     db: Session = Depends(get_db),
 ):
     ensure_thread_access(db, thread_id, current_user)
-    return {"messages": load_conversation(chatbot, thread_id)}
+    return {"messages": load_conversation(chatbot, thread_id)} ### you will get messages in key value pair AI : "" Human : ""
 
 
 @router.post("/nameChat")
 async def name_chat(
-    payload: ChatNameRequest,
+    payload: ChatNameRequest, #message and thread_id
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):

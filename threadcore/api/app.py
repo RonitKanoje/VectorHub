@@ -11,7 +11,7 @@ from threadcore.infrastructure.db.checkpointer import get_checkpointer
 from threadcore.infrastructure.db.models import init_db
 from threadcore.services.chat.graph import build_chatbot
 
-
+## before accepting anything just run this code 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.ensure_runtime_directories()

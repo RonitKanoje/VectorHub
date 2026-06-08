@@ -1,5 +1,3 @@
-"""Conversation graph construction and execution."""
-
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, StateGraph

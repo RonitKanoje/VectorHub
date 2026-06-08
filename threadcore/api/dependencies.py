@@ -26,7 +26,7 @@ def get_current_user(
 
 def ensure_thread_access(db: Session, thread_id: str, user_id: str):
     """Verify the MongoDB user owns the thread"""
-    thread = get_thread_for_user(db, thread_id, user_id)
+    thread = get_thread_for_user(db, thread_id, user_id) ### 
     if thread is None:
         raise HTTPException(status_code=404, detail="invalid_thread_id")
     return thread

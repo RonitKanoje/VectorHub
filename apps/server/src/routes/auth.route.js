@@ -35,7 +35,7 @@ router.get("/logoutAll", authController.logoutAll);
  * - router GET /api/auth/refresh-token
  */
 
-router.get("/refresh-token", authController.refreshToken);
+router.post("/refresh-token", authController.refreshToken);
 
 router.get("/google", authController.googleLoginPage);
 
