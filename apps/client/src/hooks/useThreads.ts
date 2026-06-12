@@ -20,6 +20,7 @@ interface UseThreadsReturn {
   ) => string;
   removeDraftThread: (threadId: string) => void;
   setThreads: React.Dispatch<React.SetStateAction<ChatThread[]>>; // SetStateAction<T> = T | ((prevState: T) => T); and dispatch is a function that takes input and returns nothing
+  setDraftThreadIds: React.Dispatch<React.SetStateAction<Set<string>>>; // ← add this
 }
 
 export function useThreads(): UseThreadsReturn {
@@ -89,6 +90,7 @@ export function useThreads(): UseThreadsReturn {
     });
   }, []);
 
+  // in useThreads.ts return statement
   return {
     threads,
     isLoadingThreads,
@@ -98,5 +100,6 @@ export function useThreads(): UseThreadsReturn {
     ensureActiveThread,
     removeDraftThread,
     setThreads,
+    setDraftThreadIds, // ← add this
   };
 }

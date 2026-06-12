@@ -3,7 +3,6 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-### __file__ will give exact file path Path in gives in the form of path and .resolve in the form of absolute path & [2] for parent's parent 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 
@@ -19,6 +18,8 @@ class Settings(BaseSettings):
     langchain_endpoint: str | None = Field(default=None, validation_alias="LANGCHAIN_ENDPOINT")
     langchain_project: str | None = Field(default=None, validation_alias="LANGCHAIN_PROJECT")
 
+    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")  # ← added
+
     qdrant_url: str = Field(default="http://localhost:6333", validation_alias="QDRANT_URL")
     redis_host: str = Field(default="127.0.0.1", validation_alias="REDIS_HOST")
     redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
@@ -31,7 +32,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    ## Using property so that it looks like a value
     @property
     def data_dir(self) -> Path:
         return BASE_DIR / "data"

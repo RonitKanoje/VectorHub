@@ -113,15 +113,24 @@ User question:
         "messages": [AIMessage(content=result.answer)],
         "confidence": result.confidence,
     }   
+
+
 @traceable(name="RAG Tool")
 def rag_node(state: ChatState, config) -> dict:
-    print("rag_node")
-    """Retrieve context from ingestion pipeline."""
+    print("=" * 50)
+    print("RAG NODE CONFIG:", config)          # ← add this
+    print("THREAD ID:", config["configurable"]["thread_id"])
+    print("USER ID:", config["configurable"]["user_id"])
+    print("=" * 50)
+    
     thread_id = config["configurable"]["thread_id"]
     user_id = config["configurable"]["user_id"]
     query = state["user_message"]
 
     result = retrieve_answer(query, user_id=user_id, thread_id=thread_id)
+    
+    print("RETRIEVED DOCS COUNT:", len(result))  # ← add this
+    
     contexts = [doc.page_content for doc in result]
     metadata = [doc.metadata for doc in result]
 

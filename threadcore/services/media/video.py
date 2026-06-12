@@ -1,7 +1,7 @@
 import subprocess
+import os
 from pathlib import Path
-import torch
-import whisper
+from groq import Groq
 from threadcore.core.config import settings
 
 
@@ -14,30 +14,43 @@ def extract_audio(video_path: str, thread_id: str) -> str:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     subprocess.run(
-        ["ffmpeg", "-i", str(source_path), str(output_path)],
+        [
+            "ffmpeg", "-i", str(source_path),
+            "-ar", "16000",
+            "-ac", "1",
+            "-b:a", "32k",
+            "-y",
+            str(output_path),
+        ],
         check=True,
+        capture_output=True,
     )
 
     return str(output_path)
 
 
 def transcribe_audio_to_chunks(audio_path: str, language: str | None = None):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = whisper.load_model("large-v2", device=device)
+    file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+    if file_size_mb > 50:
+        raise ValueError(
+            f"Audio file is {file_size_mb:.1f}MB — exceeds Groq's 25MB limit."
+        )
 
-    result = model.transcribe(
-        audio=audio_path,
-        task="translate",
-        language=language,
-    )
+    client = Groq(api_key=settings.groq_api_key)
+
+    with open(audio_path, "rb") as f:
+        result = client.audio.translations.create(  # ← translations, not transcriptions
+            file=f,
+            model="whisper-large-v3",
+            response_format="verbose_json",
+        )
 
     return [
-        {
-            "source": audio_path,
-            "text": segment["text"],
-            "start": segment["start"],
-            "duration": segment["end"] - segment["start"],
-        }
-        for segment in result["segments"]
-    ]
-
+    {
+        "source": audio_path,
+        "text": segment["text"],                        # ← dict access
+        "start": segment["start"],
+        "duration": segment["end"] - segment["start"],  # ← end - start
+    }
+    for segment in result.segments
+]       

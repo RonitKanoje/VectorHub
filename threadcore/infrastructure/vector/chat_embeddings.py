@@ -17,6 +17,7 @@ def create_collection_if_not_exists(collection_name: str) -> None:
         vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
     )
 
+
 @traceable(name="Store Chat Embeddings")
 def store_chat_embeddings(
     documents: Sequence[Document],
@@ -49,7 +50,7 @@ def store_chat_embeddings(
 
         prepared_docs.append(document)
 
-        if i < 3:  # print only first few docs
+        if i < 3:
             print(f"\nDocument {i + 1}")
             print("Content:", document.page_content[:200])
             print("Metadata:", document.metadata)
@@ -65,7 +66,7 @@ def store_chat_embeddings(
 
 
 @traceable(name="Retrieve Chat Embeddings")
-def retrieve_chat_embeddings(query: str, user_id: int, thread_id: str):
+def retrieve_chat_embeddings(query: str, user_id: str, thread_id: str):
     print("=" * 50)
     print("RETRIEVE CHAT EMBEDDINGS")
     print("Query:", query)
@@ -78,8 +79,17 @@ def retrieve_chat_embeddings(query: str, user_id: int, thread_id: str):
 
     vector_store = create_vector_store(CHAT_COLLECTION)
 
-    # TEMPORARY TEST
-    retriever = vector_store.as_retriever()
+    #  Filter by both user_id AND thread_id
+    retriever = vector_store.as_retriever(
+    search_kwargs={
+        "filter": {
+            "must": [
+                {"key": "metadata.user_id", "match": {"value": user_id}},        # ← added metadata.
+                {"key": "metadata.thread_id", "match": {"value": thread_id}},    # ← added metadata.
+                ]
+            }
+        }
+    )
 
     result = retriever.invoke(query)
 

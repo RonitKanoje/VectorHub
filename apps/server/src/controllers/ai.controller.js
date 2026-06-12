@@ -92,7 +92,15 @@ function buildChatPayload(body = {}) {
     ? [...body.messages].reverse().find((item) => item?.role !== "assistant")
     : null; // user's last message
 
-  const { role = "user", content, thread_id } = body;
+  const content =
+    body.content ??
+    body.message ??
+    body.text ??
+    body.query ??
+    lastMessage?.content ??
+    lastMessage?.message;
+
+  const threadId = body.thread_id ?? body.threadId;
 
   if (!content || String(content).trim() === "") {
     throw new Error("message content is required");

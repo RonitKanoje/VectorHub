@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";  // ← added useRef
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch } from "react-redux";
@@ -12,12 +12,20 @@ import type { AppDispatch } from "../redux/store";
 import { useThreads } from "../hooks/useThreads";
 import { useConversation } from "../hooks/useConversation";
 import { useMediaProcessing } from "../hooks/useMediaProcessing";
+import { createThreadId } from "../utils/createThreadId";  // ← added
 
 const Chat = () => {
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);  // ← renamed
+  const activeThreadIdRef = useRef<string | null>(null);  // ← added
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+
+  // Sync setter — updates both ref (sync) and state (async)
+  const setActiveThreadId = useCallback((id: string) => {
+    activeThreadIdRef.current = id;
+    _setActiveThreadId(id);
+  }, []);
 
   // Hooks
   const {
@@ -26,9 +34,9 @@ const Chat = () => {
     draftThreadIds,
     loadThreads,
     handleNewChat,
-    ensureActiveThread,
     removeDraftThread,
     setThreads,
+    setDraftThreadIds,  // ← need to expose this from useThreads
   } = useThreads();
 
   const {
@@ -54,14 +62,11 @@ const Chat = () => {
   const inputDisabled = isLoadingConversation;
 
   // Effects
-
-  // Load threads once on mount
   useEffect(() => {
     const id = window.setTimeout(() => void loadThreads(), 0);
     return () => window.clearTimeout(id);
   }, [loadThreads]);
 
-  // Load conversation whenever the active thread changes
   useEffect(() => {
     if (!activeThreadId) return;
     const isDraft = draftThreadIds.has(activeThreadId);
@@ -73,16 +78,22 @@ const Chat = () => {
   }, [activeThreadId, draftThreadIds, loadConversation]);
 
   // Handlers
-
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const handleNewChatClick = () =>
     handleNewChat(setActiveThreadId, setActiveStatus, setMessages);
 
-  const getEnsuredThread = useCallback(
-    () => ensureActiveThread(activeThreadId, setActiveThreadId),
-    [activeThreadId, ensureActiveThread],
-  );
+  // ✅ Fixed — reads from ref (sync) not state (async)
+  const getEnsuredThread = useCallback(() => {
+    if (activeThreadIdRef.current) return activeThreadIdRef.current;
+
+    const threadId = createThreadId();
+    activeThreadIdRef.current = threadId;  // sync update immediately
+    setDraftThreadIds((prev) => new Set(prev).add(threadId));
+    setThreads((prev) => [{ thread_id: threadId, title: "New Chat" }, ...prev]);
+    _setActiveThreadId(threadId);
+    return threadId;
+  }, [setThreads, setDraftThreadIds]);
 
   const handleSendMessage = async (content: string) => {
     await handleSend(
@@ -128,7 +139,6 @@ const Chat = () => {
     }
   };
 
-  // Render
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-100 text-slate-950">
       <ChatSidebar
