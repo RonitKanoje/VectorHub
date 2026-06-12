@@ -1,15 +1,15 @@
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from threadcore.infrastructure.db.repositories import get_thread_for_user
 
 
-def get_chatbot(request):
+def get_chatbot(request: Request):
     return request.app.state.chatbot
 
 
 def get_current_user(
-    x_user_id: str = Header(..., alias="X-User-Id"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
 ) -> str:
     """
     Resolve the authenticated user ID from the trusted X-User-Id header.

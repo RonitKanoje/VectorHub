@@ -36,6 +36,7 @@ def add_user_messages_to_vector_store(texts: Sequence[str], user_id: int):
 
 @traceable(name="Retrieve User Messages")
 def retrieve_user_messages_from_vector_store(query: str, user_id: int):
+    _ensure_long_term_collection()
     vector_store = create_vector_store(LONG_TERM_COLLECTION)
     retriever = vector_store.as_retriever(
         search_kwargs={
@@ -47,4 +48,3 @@ def retrieve_user_messages_from_vector_store(query: str, user_id: int):
         }
     )
     return retriever.invoke(query)
-

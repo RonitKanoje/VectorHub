@@ -33,28 +33,19 @@ const OTPInput = ({ otp, setOtp, length = 6 }: OTPInputProps) => {
   };
 
   return (
-    <div className="flex gap-3 mt-6 justify-center">
+    <div className="mt-6 flex justify-center gap-3">
       {otp.map((digit, index) => (
         <input
           key={index}
-          ref={(el) => (inputRefs.current[index] = el)}
+          ref={(el) => {
+            inputRefs.current[index] = el;
+          }}
           type="text"
           maxLength={1}
           value={digit}
           onChange={(e) => handleChange(index, e.target.value)}
           onKeyDown={(e) => handleKeyDown(index, e)}
-          className="
-            w-12 h-12
-            text-center
-            text-xl
-            rounded-lg
-            border
-            border-gray-500
-            bg-mist-600
-            focus:outline-none
-            focus:ring-2
-            focus:ring-blue-500
-          "
+          className="h-12 w-12 rounded-xl border border-white/10 bg-slate-950 text-center text-xl font-semibold text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
         />
       ))}
     </div>

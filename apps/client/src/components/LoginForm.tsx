@@ -6,9 +6,10 @@ import api from "../services/api";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FcGoogle } from "react-icons/fc";
-import { useDispatch, useSelector } from "react-redux";
-import type { AppDispatch, RootState } from "../redux/store";
+import { useDispatch } from "react-redux";
+import type { AppDispatch } from "../redux/store";
 import { setCredentials } from "../redux/features/authSlice";
+import { getApiErrorMessage } from "../utils/errors";
 
 interface LoginFormProps {
   onRegisterClick: () => void;
@@ -33,9 +34,9 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
 
       dispatch(setCredentials(response.data.accessToken));
 
-      navigate("/login/otp");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Something went wrong");
+      navigate("/chat");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Something went wrong"));
     }
   };
 

@@ -1,47 +1,79 @@
-const AudioModal = () => {
-  return (
-    <div className="w-[420px] bg-white rounded-2xl shadow-2xl p-8 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Upload Audio</h1>
+import { useRef, useState } from "react";
+import type { MediaPayload } from "./MessageInput";
 
-        <p className="text-sm text-zinc-500 mt-1">
-          Upload a audio file to generate a summary.
+interface AudioModalProps {
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (file: NonNullable<MediaPayload["file"]>) => Promise<void>;
+}
+
+const AudioModal = ({ isSubmitting, onClose, onSubmit }: AudioModalProps) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+
+  const handleSubmit = async () => {
+    if (!file || isSubmitting) return;
+    const contentBase64 = await readFileAsDataUrl(file);
+    await onSubmit({ name: file.name, contentBase64 });
+  };
+
+  return (
+    <div className="flex max-h-[calc(100vh-4rem)] w-full flex-col gap-6 overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-950">Upload Audio</h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Upload an audio file to transcribe and process chunks.
         </p>
       </div>
 
-      <button
-        className="
-          w-full
-          h-12
-          border-2
-          border-dashed
-          border-zinc-300
-          rounded-lg
-          text-zinc-600
-          hover:border-violet-500
-          hover:text-violet-600
-          transition-all
-        "
-      >
-        Choose a File
-      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+      />
 
       <button
-        className="
-          w-full
-          h-12
-          bg-violet-600
-          text-white
-          rounded-lg
-          hover:bg-violet-700
-          transition-all
-          active:scale-95
-        "
+        type="button"
+        disabled={isSubmitting}
+        className="flex min-h-24 w-full items-center justify-center break-all rounded-xl border-2 border-dashed border-slate-300 px-4 text-center text-sm text-slate-600 transition hover:border-cyan-500 hover:text-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={() => fileInputRef.current?.click()}
       >
-        Submit
+        {file ? file.name : "Choose an audio file"}
       </button>
+
+      <div className="flex justify-end gap-3">
+        <button
+          type="button"
+          disabled={isSubmitting}
+          className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          disabled={!file || isSubmitting}
+          className="rounded-xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+          onClick={() => void handleSubmit()}
+        >
+          {isSubmitting ? "Processing..." : "Submit"}
+        </button>
+      </div>
     </div>
   );
 };
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 export default AudioModal;

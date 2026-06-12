@@ -7,6 +7,7 @@ from threadcore.services.chat.llm_config import CONFIDENCE_THRESHOLD
 from threadcore.services.chat.nodes import (
     chat_node,
     intent_node,
+    personal_memory_node,
     rag_node,
     simple_chat_node,
 )
@@ -30,6 +31,14 @@ def confidence_tools_condition(state: ChatState):
     return END
 
 
+def intent_route_branches(state: ChatState):
+    """Route chat through memory, and RAG through parallel retrieval branches."""
+    if state["route"] == "rag":
+        return ["rag_node", "rag_personal_memory_node"]
+
+    return "personal_memory_node"
+
+
 @traceable(name="Build Chatbot Graph")
 def build_chatbot(checkpointer):
     """Construct and compile the conversation graph."""
@@ -40,19 +49,19 @@ def build_chatbot(checkpointer):
     graph.add_node("simple_chat_node", simple_chat_node)
     graph.add_node("chat_node", chat_node)
     graph.add_node("rag_node", rag_node)
+    graph.add_node("personal_memory_node", personal_memory_node)
+    graph.add_node("rag_personal_memory_node", personal_memory_node)
     graph.add_node("tools", tool_node)
 
     # Add edges
     graph.add_edge(START, "intent")
     graph.add_conditional_edges(
         "intent",
-        lambda state: state["route"],
-        {
-            "chat": "simple_chat_node",
-            "rag": "rag_node",
-        },
+        intent_route_branches,
+        ["rag_node", "rag_personal_memory_node", "personal_memory_node"],
     )
-    graph.add_edge("rag_node", "chat_node")
+    graph.add_edge("personal_memory_node", "simple_chat_node")
+    graph.add_edge(["rag_node", "rag_personal_memory_node"], "chat_node")
     graph.add_conditional_edges(
         "chat_node",
         confidence_tools_condition,
@@ -82,4 +91,3 @@ def load_conversation(chatbot, thread_id: str):
             conversation.append({"role": "assistant", "content": message.content})
 
     return conversation
-

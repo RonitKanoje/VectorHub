@@ -5,6 +5,7 @@ import AnimatedCard from "./AnimatedCard";
 import api from "../services/api";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { getApiErrorMessage } from "../utils/errors";
 
 interface RegisterFormProps {
   onLoginClick: () => void;
@@ -48,8 +49,8 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
         toast.success("Account created successfully!");
         navigate("/register/otp");
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Registration failed");
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, "Registration failed"));
       console.error(error);
     }
   };

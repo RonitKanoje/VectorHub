@@ -1,82 +1,115 @@
 import { useState } from "react";
-
+import { createPortal } from "react-dom";
+import { AudioLines, FileText, SquarePlay, Video } from "lucide-react";
 import OptionsButton from "./OptionsButton";
-
 import YTModal from "./YTModal";
 import VideoModal from "./VideoModal";
 import AudioModal from "./AudioModal";
 import TextModal from "./TextModal";
+import type { MediaPayload } from "./MessageInput";
 
-const Options = () => {
-  const [activeModal, setActiveModal] = useState(null);
+type ActiveModal = "youtube" | "video" | "audio" | "text" | null;
+const modalBackdropClass =
+  "fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/60 px-4 py-6 backdrop-blur-sm";
+const modalShellClass = "w-full max-w-lg";
+
+interface OptionsProps {
+  onClose: () => void;
+  onProcessMedia: (payload: MediaPayload) => Promise<void>;
+}
+
+const Options = ({ onClose, onProcessMedia }: OptionsProps) => {
+  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (payload: MediaPayload) => {
+    setIsSubmitting(true);
+    try {
+      await onProcessMedia(payload);
+      setActiveModal(null);
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    if (!isSubmitting) {
+      setActiveModal(null);
+    }
+  };
+
+  const modal =
+    activeModal && typeof document !== "undefined"
+      ? createPortal(
+          <div className={modalBackdropClass} onClick={closeModal}>
+            <div className={modalShellClass} onClick={(e) => e.stopPropagation()}>
+              {activeModal === "youtube" && (
+                <YTModal
+                  isSubmitting={isSubmitting}
+                  onClose={closeModal}
+                  onSubmit={(path) => handleSubmit({ media: "youtube", path })}
+                />
+              )}
+
+              {activeModal === "video" && (
+                <VideoModal
+                  isSubmitting={isSubmitting}
+                  onClose={closeModal}
+                  onSubmit={(file) => handleSubmit({ media: "video", file })}
+                />
+              )}
+
+              {activeModal === "audio" && (
+                <AudioModal
+                  isSubmitting={isSubmitting}
+                  onClose={closeModal}
+                  onSubmit={(file) => handleSubmit({ media: "audio", file })}
+                />
+              )}
+
+              {activeModal === "text" && (
+                <TextModal
+                  isSubmitting={isSubmitting}
+                  onClose={closeModal}
+                  onSubmit={(path) => handleSubmit({ media: "text", path })}
+                />
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
-      <div className="w-56 flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <OptionsButton
-          text="Youtube Transcript"
-          onClick={() => setActiveModal("Youtube Transcript")}
+          icon={<SquarePlay className="h-4 w-4" />}
+          text="YouTube transcript"
+          onClick={() => setActiveModal("youtube")}
         />
 
         <OptionsButton
-          text="Video Summary"
-          onClick={() => setActiveModal("Video Summary")}
+          icon={<Video className="h-4 w-4" />}
+          text="Video file"
+          onClick={() => setActiveModal("video")}
         />
 
         <OptionsButton
-          text="Audio Summary"
-          onClick={() => setActiveModal("Audio Summary")}
+          icon={<AudioLines className="h-4 w-4" />}
+          text="Audio file"
+          onClick={() => setActiveModal("audio")}
         />
 
         <OptionsButton
-          text="Text Summary"
-          onClick={() => setActiveModal("Text Summary")}
+          icon={<FileText className="h-4 w-4" />}
+          text="Text content"
+          onClick={() => setActiveModal("text")}
         />
       </div>
 
-      {activeModal === "Youtube Transcript" && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setActiveModal(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <YTModal />
-          </div>
-        </div>
-      )}
-
-      {activeModal === "Video Summary" && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setActiveModal(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <VideoModal />
-          </div>
-        </div>
-      )}
-
-      {activeModal === "Audio Summary" && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setActiveModal(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <AudioModal />
-          </div>
-        </div>
-      )}
-
-      {activeModal === "Text Summary" && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={() => setActiveModal(null)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <TextModal />
-          </div>
-        </div>
-      )}
+      {modal}
     </>
   );
 };

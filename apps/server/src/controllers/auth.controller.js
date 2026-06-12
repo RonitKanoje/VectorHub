@@ -182,9 +182,6 @@ export async function verifyEmail(req, res) {
       });
     }
 
-    user.isVerified = true;
-    await user.save();
-
     if (verificationRecord.expiresAt < new Date()) {
       await verificationToken.deleteOne({
         _id: verificationRecord._id,
@@ -196,9 +193,50 @@ export async function verifyEmail(req, res) {
       });
     }
 
+    user.isVerified = true;
+    await user.save();
+
+    const session = await Session.create({
+      user: user._id,
+      refreshTokenHash: "pending",
+      ip: req.ip,
+      userAgent: req.get("User-Agent"),
+    });
+
+    const refreshToken = await generateToken(
+      {
+        userId: user._id,
+        sessionId: session._id,
+      },
+      "7d",
+    );
+
+    const accessToken = await generateToken(
+      {
+        userId: user._id,
+      },
+      "15m",
+    );
+
+    session.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    await session.save();
+
+    await verificationToken.deleteOne({
+      _id: verificationRecord._id,
+    });
+
+    res.clearCookie("verificationToken");
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Email verified successfully",
+      accessToken,
     });
   } catch (error) {
     console.error(error);
@@ -368,7 +406,7 @@ export async function refreshToken(req, res) {
     session.refreshTokenHash = newRefreshTokenHash;
     await session.save();
 
-    res.cookie("refreshToken", refreshToken, {
+    res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
@@ -381,9 +419,9 @@ export async function refreshToken(req, res) {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
+    return res.status(401).json({
       success: false,
-      message: "Internal Server Error",
+      message: "Invalid refresh token",
     });
   }
 }
@@ -399,9 +437,11 @@ export async function logout(req, res) {
       });
     }
 
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
+
     const session = await Session.findOne({
-      refreshTokenHash,
+      _id: decoded.sessionId,
+      user: decoded.userId,
       revoked: false,
     });
 
@@ -411,6 +451,19 @@ export async function logout(req, res) {
         message: "Invalid refresh token",
       });
     }
+
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
+
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid refresh token",
+      });
+    }
+
     session.revoked = true;
     await session.save();
 
@@ -430,24 +483,34 @@ export async function logout(req, res) {
 }
 
 export async function logoutAll(req, res) {
-  const refreshToken = req.cookies.refreshToken;
-  if (!refreshToken) {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
+
+    await Session.updateMany(
+      { user: decoded.userId, revoked: false },
+      { revoked: true },
+    );
+
+    res.clearCookie("refreshToken");
+    return res.status(200).json({
+      success: true,
+      message: "Logged out from all devices successfully",
+    });
+  } catch (error) {
+    console.error(error);
     return res.status(401).json({
-      message: "Unauthorized",
+      success: false,
+      message: "Invalid refresh token",
     });
   }
-
-  const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
-
-  await Session.updateMany(
-    { user: decoded.id, revoked: false },
-    { revoked: true },
-  );
-
-  res.clearCookie("refreshToken");
-  res.status(200).json({
-    message: "Logged out from all devices successfully",
-  });
 }
 
 // Helper function to generate code verifier for PKCE

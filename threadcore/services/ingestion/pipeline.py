@@ -1,8 +1,9 @@
 from langsmith import traceable
-from threadcore.infrastructure.cache.redis_client import redis_client
+from threadcore.infrastructure.cache.redis_client import set_thread_status
 from threadcore.infrastructure.vector.chat_embeddings import store_chat_embeddings
 from threadcore.infrastructure.vector.chat_embeddings import retrieve_chat_embeddings
 from threadcore.infrastructure.vector.long_term_memory import (
+    add_user_messages_to_vector_store,
     retrieve_user_messages_from_vector_store,
 )
 from threadcore.services.ingestion.chunking import (
@@ -23,9 +24,11 @@ def process_media_upload(
     language: str | None = None,
 ):
     try:
-        redis_client.set(thread_id, "processing")
+        print("pipelineee")
+        set_thread_status(thread_id, "processing")
 
         if media == "youtube":
+            print("yt pipelineee")
             transcript_chunks = fetch_transcript(path)
             documents = documents_from_transcript(transcript_chunks)
         elif media == "audio":
@@ -45,9 +48,9 @@ def process_media_upload(
             document.metadata["media_type"] = media
 
         store_chat_embeddings(documents, user_id=user_id, thread_id=thread_id)
-        redis_client.set(thread_id, "completed")
+        set_thread_status(thread_id, "completed")
     except Exception as exc:
-        redis_client.set(thread_id, f"failed: {exc}")
+        set_thread_status(thread_id, f"failed: {exc}")
         raise
 
 
@@ -59,3 +62,8 @@ def retrieve_answer(query: str, user_id: int, thread_id: str):
 @traceable(name="Long Term Retrieve Answer")
 def long_term_retrieve_answer(query: str, user_id: int):
     return retrieve_user_messages_from_vector_store(query, user_id=user_id)
+
+
+@traceable(name="Long Term Store User Facts")
+def long_term_store_user_facts(facts: list[str], user_id: int):
+    return add_user_messages_to_vector_store(facts, user_id=user_id)

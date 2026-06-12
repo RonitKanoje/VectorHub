@@ -31,10 +31,10 @@ const config = {
   GOOGLE_CWT_CLIENT_SECRET:
     process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_SECRET,
   GOOGLE_CWT_CLIENT_ID: process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID,
-
-  CLIENT_URL: process.env.CLIENT_URL || "http://localhost:5173",
-  NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: process.env.PORT || 3000,
+  CLIENT_URL: process.env.CLIENT_URL,
+  THREADCORE_URL: process.env.THREADCORE_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
 };
 
 export default config;

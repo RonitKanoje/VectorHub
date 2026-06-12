@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class ProcessMediaRequest(BaseModel):
@@ -11,9 +11,27 @@ class ProcessMediaRequest(BaseModel):
 
 
 class ChatMessageRequest(BaseModel):
-    role: str = Field(..., description="Role of the message sender")
-    content: str = Field(..., description="Content of the message")
-    thread_id: str = Field(..., description="Thread ID for chat context")
+    role: str = Field(default="user", description="Role of the message sender")
+    content: str = Field(
+        ...,
+        validation_alias=AliasChoices("content", "message", "text", "query"),
+        description="Content of the message",
+    )
+    thread_id: str = Field(
+        ...,
+        validation_alias=AliasChoices("thread_id", "threadId"),
+        description="Thread ID for chat context",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_validator("content", "thread_id")
+    @classmethod
+    def required_string(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Field cannot be empty")
+        return value
 
 
 class ChatNameRequest(BaseModel):

@@ -1,45 +1,49 @@
-const TextModal = () => {
-  return (
-    <div className="w-[420px] bg-white rounded-2xl shadow-2xl p-8 flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Text Summary</h1>
+import { useState } from "react";
 
-        <p className="text-sm text-zinc-500 mt-1">
-          Paste your text below and we'll generate a summary.
+interface TextModalProps {
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (path: string) => Promise<void>;
+}
+
+const TextModal = ({ isSubmitting, onClose, onSubmit }: TextModalProps) => {
+  const [text, setText] = useState("");
+
+  return (
+    <div className="flex max-h-[calc(100vh-4rem)] w-full flex-col gap-6 overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-8">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-950">Text Content</h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Paste text to process it into searchable chunks.
         </p>
       </div>
 
       <textarea
+        value={text}
+        disabled={isSubmitting}
         placeholder="Paste your text here..."
-        className="
-          w-full
-          h-48
-          p-4
-          border
-          border-zinc-300
-          rounded-lg
-          resize-none
-          focus:outline-none
-          focus:ring-2
-          focus:ring-violet-500
-          focus:border-transparent
-        "
+        className="h-48 max-h-[40vh] w-full resize-none rounded-xl border border-slate-300 p-4 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:bg-slate-100"
+        onChange={(e) => setText(e.target.value)}
       />
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
         <button
-          className="
-            px-5
-            py-2
-            rounded-lg
-            bg-violet-600
-            text-white
-            hover:bg-violet-700
-            transition-all
-            active:scale-95
-          "
+          type="button"
+          disabled={isSubmitting}
+          className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onClose}
         >
-          Submit
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          disabled={!text.trim() || isSubmitting}
+          className="rounded-xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-300"
+          onClick={() => onSubmit(text.trim())}
+        >
+          {isSubmitting ? "Processing..." : "Submit"}
         </button>
       </div>
     </div>

@@ -1,22 +1,37 @@
 import { useState } from "react";
-import { RiAddLargeLine } from "@remixicon/react";
+import { Plus } from "lucide-react";
 import Options from "./Options";
+import type { MediaPayload } from "./MessageInput";
 
-const PlusButton = () => {
+interface PlusButtonProps {
+  disabled?: boolean;
+  onProcessMedia: (payload: MediaPayload) => Promise<void>;
+}
+
+const PlusButton = ({ disabled = false, onProcessMedia }: PlusButtonProps) => {
   const [showOptions, setShowOptions] = useState(false);
 
   return (
-    <div className="relative ">
+    <div className="absolute left-3 top-1/2 z-20 -translate-y-1/2">
       <button
-        className="absolute left-3 top-1/2 -translate-y-1/2"
+        type="button"
+        disabled={disabled}
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-200 hover:text-slate-950 disabled:cursor-not-allowed disabled:text-slate-300"
         onClick={() => setShowOptions((prev) => !prev)}
+        aria-label="Add content"
       >
-        <RiAddLargeLine size={18} color="black" />
+        <Plus className="h-5 w-5" />
       </button>
 
       {showOptions && (
-        <div className="absolute left-0 top-full mt-2 bg-white border border-zinc-200 rounded-xl shadow-xl p-2 z-10">
-          <Options />
+        <div className="fixed bottom-24 left-3 z-50 w-[calc(100vw-1.5rem)] max-w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-950/15 sm:absolute sm:bottom-full sm:left-0 sm:mb-3 sm:w-64">
+          <Options
+            onClose={() => setShowOptions(false)}
+            onProcessMedia={async (payload) => {
+              await onProcessMedia(payload);
+              setShowOptions(false);
+            }}
+          />
         </div>
       )}
     </div>

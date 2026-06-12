@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from threadcore.api.dependencies import ensure_thread_access, get_current_user
 from threadcore.api.schemas import ProcessMediaRequest
-from threadcore.infrastructure.cache.redis_client import redis_client
+from threadcore.infrastructure.cache.redis_client import get_thread_status, set_thread_status
 from threadcore.infrastructure.db.repositories import create_or_update_thread
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.ingestion.pipeline import process_media_upload
@@ -12,7 +12,7 @@ from threadcore.services.ingestion.pipeline import process_media_upload
 router = APIRouter(tags=["ingestion"])
 
 
-def _resolve_user(x_user_id: str = Header(..., alias="X-User-Id")) -> str:
+def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
     """Get current user ID from header"""
     return get_current_user(x_user_id=x_user_id)
 
@@ -25,7 +25,7 @@ async def process_media(
     db: Session = Depends(get_db),
 ):
     create_or_update_thread(db, payload.thread_id, "New Chat", current_user)
-    redis_client.set(payload.thread_id, "queued")
+    set_thread_status(payload.thread_id, "queued")
     background_tasks.add_task(
         process_media_upload,
         payload.path,
@@ -44,7 +44,7 @@ def ingestion_status(
     db: Session = Depends(get_db),
 ):
     ensure_thread_access(db, thread_id, current_user)
-    status = redis_client.get(thread_id)
+    status = get_thread_status(thread_id)
     if status is None:
         return {"status": "invalid_thread_id"}
     return {"status": status}
@@ -57,7 +57,7 @@ def thread_status(
     db: Session = Depends(get_db),
 ):
     ensure_thread_access(db, thread_id, current_user)
-    status = redis_client.get(thread_id)
+    status = get_thread_status(thread_id)
     if status is None:
-        return {"status": "invalid_thread_id"}
+        return {"status": "chat"}
     return {"status": status}

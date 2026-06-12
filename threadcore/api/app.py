@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from threadcore.api.routes.chat import router as chat_router
 from threadcore.api.routes.ingestion import router as ingestion_router
 from threadcore.api.routes.threads import router as threads_router
 from threadcore.core.config import settings
-from threadcore.infrastructure.cache.redis_client import redis_client
+from threadcore.infrastructure.cache.redis_client import is_redis_available
 from threadcore.infrastructure.db.checkpointer import get_checkpointer
 from threadcore.infrastructure.db.models import init_db
 from threadcore.services.chat.graph import build_chatbot
@@ -18,14 +20,35 @@ async def lifespan(app: FastAPI):
     init_db()
     app.state.checkpointer = get_checkpointer()
     app.state.chatbot = build_chatbot(app.state.checkpointer)
-    try:
-        redis_client.ping()
-    except Exception:
-        pass
+    is_redis_available()
     yield
 
 
 app = FastAPI(title="ThreadCore API", lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    body = await request.body()
+    errors = exc.errors()
+    message = "; ".join(
+        f"{'.'.join(str(part) for part in error.get('loc', ['request']))}: {error.get('msg')}"
+        for error in errors
+    )
+    print(
+        "Request validation failed",
+        {
+            "method": request.method,
+            "path": request.url.path,
+            "errors": errors,
+            "body": body.decode("utf-8", errors="replace"),
+            "has_x_user_id": bool(request.headers.get("X-User-Id")),
+        },
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"detail": errors, "message": message or "Invalid request"},
+    )
 
 
 @app.get("/")

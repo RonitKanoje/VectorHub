@@ -12,7 +12,7 @@ from threadcore.infrastructure.db.session import get_db
 router = APIRouter(tags=["threads"])
 
 
-def _resolve_user(x_user_id: str = Header(..., alias="X-User-Id")) -> str:
+def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
     """Get current user ID from header"""
     return get_current_user(x_user_id=x_user_id)
 
