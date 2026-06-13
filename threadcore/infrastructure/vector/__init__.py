@@ -1,2 +1,0 @@
-"""Qdrant-backed vector storage."""
-

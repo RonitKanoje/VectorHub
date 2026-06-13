@@ -11,7 +11,7 @@ export function getOtpHtml(otp) {
 
         <h2>OTP Verification</h2>
 
-        <p>Your OTP for verification is:</p>
+        <p>Your OTP for verification is:</p>  
 
         <h1 style="color: blue; letter-spacing: 5px;">
           ${otp}

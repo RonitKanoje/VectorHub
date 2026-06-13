@@ -32,43 +32,41 @@ def confidence_tools_condition(state: ChatState):
 
 
 def intent_route_branches(state: ChatState):
-    """Route chat through memory, and RAG through parallel retrieval branches."""
     if state["route"] == "rag":
-        return ["rag_node", "rag_personal_memory_node"]
-
-    return "personal_memory_node"
+        return ["rag_node", "personal_memory_node"]  # ← parallel for rag
+    return ["simple_chat_node", "personal_memory_node"]
 
 
 @traceable(name="Build Chatbot Graph")
 def build_chatbot(checkpointer):
-    """Construct and compile the conversation graph."""
     graph = StateGraph(ChatState)
 
-    # Add nodes
     graph.add_node("intent", intent_node)
-    graph.add_node("simple_chat_node", simple_chat_node)
-    graph.add_node("chat_node", chat_node)
-    graph.add_node("rag_node", rag_node)
     graph.add_node("personal_memory_node", personal_memory_node)
-    graph.add_node("rag_personal_memory_node", personal_memory_node)
+    graph.add_node("simple_chat_node", simple_chat_node)
+    graph.add_node("rag_node", rag_node)
+    graph.add_node("chat_node", chat_node)
     graph.add_node("tools", tool_node)
 
-    # Add edges
     graph.add_edge(START, "intent")
+
+    # ✅ Both branches run in parallel after intent
     graph.add_conditional_edges(
         "intent",
         intent_route_branches,
-        ["rag_node", "rag_personal_memory_node", "personal_memory_node"],
+        ["rag_node", "simple_chat_node", "personal_memory_node"],
     )
-    graph.add_edge("personal_memory_node", "simple_chat_node")
-    graph.add_edge(["rag_node", "rag_personal_memory_node"], "chat_node")
+
+    # ✅ rag_node and personal_memory_node both feed into chat_node
+    graph.add_edge(["rag_node", "personal_memory_node"], "chat_node")
+
+    # ✅ simple_chat also waits for personal_memory_node
+    graph.add_edge(["simple_chat_node", "personal_memory_node"], END)
+
     graph.add_conditional_edges(
         "chat_node",
         confidence_tools_condition,
-        {
-            "tools": "tools",
-            END: END,
-        },
+        {"tools": "tools", END: END},
     )
     graph.add_edge("tools", "chat_node")
 

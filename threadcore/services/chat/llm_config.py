@@ -1,6 +1,4 @@
-"""LLM initialization and configuration."""
-
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from threadcore.core.config import settings
 from threadcore.services.chat.schemas import (
@@ -11,7 +9,11 @@ from threadcore.services.chat.schemas import (
 
 
 # Base LLM model
-llm = ChatOllama(model=settings.ollama_chat_model, temperature=0)
+llm = ChatGoogleGenerativeAI(
+    model=settings.gemini_chat_model,
+    google_api_key=settings.gemini_api_key,
+    temperature=0,
+)
 
 # Structured output variants
 structured_llm = llm.with_structured_output(StructuredAnswer)

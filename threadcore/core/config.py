@@ -18,13 +18,16 @@ class Settings(BaseSettings):
     langchain_endpoint: str | None = Field(default=None, validation_alias="LANGCHAIN_ENDPOINT")
     langchain_project: str | None = Field(default=None, validation_alias="LANGCHAIN_PROJECT")
 
-    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")  # ← added
+    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
 
     qdrant_url: str = Field(default="http://localhost:6333", validation_alias="QDRANT_URL")
     redis_host: str = Field(default="127.0.0.1", validation_alias="REDIS_HOST")
     redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
-    ollama_chat_model: str = Field(default="llama3.2", validation_alias="OLLAMA_CHAT_MODEL")
-    ollama_embedding_model: str = Field(default="bge-m3", validation_alias="OLLAMA_EMBEDDING_MODEL")
+
+    # Gemini
+    gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
+    gemini_chat_model: str = Field(default="gemini-2.5-flash", validation_alias="GEMINI_CHAT_MODEL")
+    gemini_embedding_model: str = Field(default="gemini-embedding-001", validation_alias="GEMINI_EMBEDDING_MODEL")
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

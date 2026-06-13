@@ -5,7 +5,7 @@ from qdrant_client.http.models import Distance, VectorParams
 from threadcore.infrastructure.vector.qdrant import client, create_vector_store
 
 
-CHAT_COLLECTION = "chat_embeddings"
+CHAT_COLLECTION = "CHAT_COLLECTION"
 
 
 def create_collection_if_not_exists(collection_name: str) -> None:
@@ -14,7 +14,7 @@ def create_collection_if_not_exists(collection_name: str) -> None:
 
     client.create_collection(
         collection_name=collection_name,
-        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+        vectors_config=VectorParams(size=3072, distance=Distance.COSINE),  
     )
 
 
@@ -67,13 +67,6 @@ def store_chat_embeddings(
 
 @traceable(name="Retrieve Chat Embeddings")
 def retrieve_chat_embeddings(query: str, user_id: str, thread_id: str):
-    print("=" * 50)
-    print("RETRIEVE CHAT EMBEDDINGS")
-    print("Query:", query)
-    print("User ID:", user_id)
-    print("Thread ID:", thread_id)
-    print(type(user_id))
-    print(type(thread_id))
 
     create_collection_if_not_exists(CHAT_COLLECTION)
 
@@ -86,7 +79,7 @@ def retrieve_chat_embeddings(query: str, user_id: str, thread_id: str):
             "must": [
                 {"key": "metadata.user_id", "match": {"value": user_id}},        # ← added metadata.
                 {"key": "metadata.thread_id", "match": {"value": thread_id}},    # ← added metadata.
-                ]
+            ]
             }
         }
     )
