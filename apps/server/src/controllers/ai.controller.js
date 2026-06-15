@@ -1,6 +1,6 @@
 import { persistBase64File } from "../utils/fileUpload.js";
 import { normalizeYoutubeInput } from "../utils/youtube.js";
-import { forwardToThreadCore } from "../utils/threadcore.js";
+import { forwardToThreadCore, forwardStreamToThreadCore } from "../utils/threadcore.js";
 
 export async function getThreads(req, res) {
   return forwardToThreadCore(req, res, "/threads");
@@ -24,7 +24,7 @@ export async function getThreadStatus(req, res) {
 
 export async function chat(req, res) {
   try {
-    return await forwardToThreadCore(req, res, "/chat", {
+    return await forwardStreamToThreadCore(req, res, "/chat", {
       method: "POST",
       body: buildChatPayload(req.body),
     });
@@ -32,6 +32,23 @@ export async function chat(req, res) {
     return res.status(400).json({
       success: false,
       message: error.message || "Invalid chat payload",
+    });
+  }
+}
+
+export async function analystChat(req, res) {
+  try {
+    return await forwardStreamToThreadCore(req, res, "/analyst_chat", {
+      method: "POST",
+      body: {
+        message: req.body.message,
+        thread_id: req.body.thread_id
+      },
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Invalid analyst chat payload",
     });
   }
 }
