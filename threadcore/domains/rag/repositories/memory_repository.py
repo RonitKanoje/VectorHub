@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-
-from threadcore.infrastructure.db.models import UserMemoryDB
+from threadcore.domains.rag.models import UserMemoryDB
 
 
 def get_memories_for_user(

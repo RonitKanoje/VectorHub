@@ -32,11 +32,28 @@ export function useMediaProcessing(): UseMediaProcessingReturn {
     setActiveStatus("queued");
 
     try {
-      await api.post("/api/ai/process_media", {
-        ...payload,
-        thread_id: threadId,
-        language: payload.language || null,
-      });
+      let data: FormData | Record<string, any>;
+      let config = {};
+
+      if (payload.file) {
+        const formData = new FormData();
+        formData.append("file", payload.file);
+        formData.append("media", payload.media);
+        formData.append("thread_id", threadId);
+        if (payload.language) formData.append("language", payload.language);
+        if (payload.path) formData.append("path", payload.path);
+        
+        data = formData;
+        config = { headers: { "Content-Type": "multipart/form-data" } };
+      } else {
+        data = {
+          ...payload,
+          thread_id: threadId,
+          language: payload.language || null,
+        };
+      }
+
+      await api.post("/api/upload", data, config);
 
       removeDraftThread(threadId);
       toast.success("Processing started");

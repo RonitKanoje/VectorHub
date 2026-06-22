@@ -13,8 +13,7 @@ const VideoModal = ({ isSubmitting, onClose, onSubmit }: VideoModalProps) => {
 
   const handleSubmit = async () => {
     if (!file || isSubmitting) return;
-    const contentBase64 = await readFileAsDataUrl(file);
-    await onSubmit({ name: file.name, contentBase64 });
+    await onSubmit(file);
   };
 
   return (

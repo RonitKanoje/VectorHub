@@ -5,7 +5,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 class ProcessMediaRequest(BaseModel):
     path: str = Field(..., description="File path or content to process")
-    media: Literal["youtube", "audio", "video", "text"]
+    media: Literal["youtube", "audio", "video", "text", "document"]
     thread_id: str = Field(..., description="Thread ID for chat context")
     language: str | None = Field(default=None, description="Language of the media content")
 
@@ -22,6 +22,7 @@ class ChatMessageRequest(BaseModel):
         validation_alias=AliasChoices("thread_id", "threadId"),
         description="Thread ID for chat context",
     )
+    is_tool_approval: bool = Field(default=False, description="Whether this is a tool approval resumption")
 
     model_config = ConfigDict(populate_by_name=True)
 

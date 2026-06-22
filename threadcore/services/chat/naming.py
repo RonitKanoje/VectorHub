@@ -1,5 +1,5 @@
 from langchain_core.messages import BaseMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from threadcore.core.config import settings
 from threadcore.services.chat.prompts import name_chat_prompt
@@ -10,9 +10,9 @@ class TitleResponse(BaseModel):
 
 
 def title_from_message(message: BaseMessage) -> str:
-    llm = ChatGoogleGenerativeAI(
-        model=settings.gemini_chat_model,
-        google_api_key=settings.gemini_api_key,
+    llm = ChatOllama(
+        model=settings.ollama_chat_model,
+        base_url=settings.ollama_base_url,
         temperature=0,
     )
     structured_llm = llm.with_structured_output(TitleResponse)

@@ -21,7 +21,7 @@ load_dotenv()
 def confidence_tools_condition(state: ChatState):
     """Determine if tools should be used based on confidence."""
     confidence = state.get("confidence", 1.0)
-    if confidence >= CONFIDENCE_THRESHOLD:
+    if confidence >= CONFIDENCE_THRESHOLD :
         return END
 
     last_message = state["messages"][-1]
@@ -33,7 +33,7 @@ def confidence_tools_condition(state: ChatState):
 
 def intent_route_branches(state: ChatState):
     if state["route"] == "rag":
-        return ["rag_node", "personal_memory_node"]  # ← parallel for rag
+        return ["rag_node", "personal_memory_node"]  
     return ["simple_chat_node", "personal_memory_node"]
 
 
@@ -50,17 +50,17 @@ def build_chatbot(checkpointer):
 
     graph.add_edge(START, "intent")
 
-    # ✅ Both branches run in parallel after intent
+    #Both branches run in parallel after intent
     graph.add_conditional_edges(
         "intent",
         intent_route_branches,
         ["rag_node", "simple_chat_node", "personal_memory_node"],
     )
 
-    # ✅ rag_node and personal_memory_node both feed into chat_node
+    #rag_node and personal_memory_node both feed into chat_node
     graph.add_edge(["rag_node", "personal_memory_node"], "chat_node")
 
-    # ✅ simple_chat also waits for personal_memory_node
+    # simple_chat also waits for personal_memory_node
     graph.add_edge(["simple_chat_node", "personal_memory_node"], END)
 
     graph.add_conditional_edges(
@@ -70,12 +70,12 @@ def build_chatbot(checkpointer):
     )
     graph.add_edge("tools", "chat_node")
 
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(checkpointer=checkpointer, interrupt_before=["tools"])
 
 
-def load_conversation(chatbot, thread_id: str):
+async def load_conversation(chatbot, thread_id: str):
     """Load conversation history from checkpointed state."""
-    state = chatbot.get_state(config={"configurable": {"thread_id": thread_id}})
+    state = await chatbot.aget_state(config={"configurable": {"thread_id": thread_id}})
     if state is None:
         return []
 

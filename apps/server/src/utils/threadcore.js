@@ -66,3 +66,46 @@ function formatThreadCoreError(data) {
     return "ThreadCore request failed";
   }
 }
+
+// streaming proxy to FastAPI
+export async function forwardStreamToThreadCore(req, res, endpoint, options = {}) {
+  try {
+    const method = options.method || "GET";
+    const response = await fetch(`${config.THREADCORE_URL}${endpoint}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": req.userId,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      const data = text ? parseResponseText(text) : {};
+      data.message = formatThreadCoreError(data);
+      console.error(`ThreadCore streaming ${method} ${endpoint} failed`, data);
+      return res.status(response.status).json(data);
+    }
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    if (response.body) {
+      for await (const chunk of response.body) {
+        res.write(chunk);
+      }
+    }
+    res.end();
+  } catch (error) {
+    console.error("ThreadCore stream proxy failed:", error);
+    if (!res.headersSent) {
+      return res.status(502).json({
+        success: false,
+        message: "FastAPI service is unavailable for streaming",
+      });
+    }
+    res.end();
+  }
+}

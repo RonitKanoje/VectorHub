@@ -24,10 +24,11 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="127.0.0.1", validation_alias="REDIS_HOST")
     redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
 
-    # Gemini
-    gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
-    gemini_chat_model: str = Field(default="gemini-2.5-flash", validation_alias="GEMINI_CHAT_MODEL")
-    gemini_embedding_model: str = Field(default="gemini-embedding-001", validation_alias="GEMINI_EMBEDDING_MODEL")
+    # Ollama
+    ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
+    
+    ollama_chat_model: str = Field(default="llama3.2:latest", validation_alias="OLLAMA_CHAT_MODEL")
+    ollama_embedding_model: str = Field(default="bge-m3:latest", validation_alias="OLLAMA_EMBEDDING_MODEL")
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
@@ -74,6 +75,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
+    print("OLLAMA_CHAT_MODEL FROM SETTINGS:", settings.ollama_chat_model)
     settings.ensure_runtime_directories()
     return settings
 

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from threadcore.infrastructure.db.models import ThreadDB
+from threadcore.domains.rag.models import ThreadDB
 
 
 def get_threads_for_user(db: Session, user_id: str):
@@ -32,4 +32,3 @@ def create_or_update_thread(db: Session, thread_id: str, title: str, user_id: st
     db.commit()
     db.refresh(thread)
     return thread
-

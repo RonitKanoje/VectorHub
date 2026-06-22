@@ -12,7 +12,7 @@ redis_client = redis.Redis(
     socket_timeout=2,
 )
 
-_fallback_thread_status: dict[str, str] = {}
+_fallback_thread_status: dict[str, str] = {}   ## Temporary backup if Redis is crashed
 
 
 def is_redis_available() -> bool:

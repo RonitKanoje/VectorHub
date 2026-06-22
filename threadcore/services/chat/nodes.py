@@ -18,12 +18,9 @@ from threadcore.services.chat.prompts import (
 )
 from threadcore.services.chat.schemas import ChatState
 from threadcore.services.chat.tools_config import tools
-from threadcore.services.ingestion.pipeline import (
-    long_term_store_user_facts,
-    retrieve_answer,
-)
+from threadcore.services.ingestion.pipeline import retrieve_answer
 from threadcore.services.chat.llm_config import llm
-from threadcore.services.memory.user_memory_service import (
+from threadcore.services.rag.memory_service import (
     store_user_memories,
      retrieve_user_memories
 )

@@ -39,7 +39,7 @@ def transcribe_audio_to_chunks(audio_path: str, language: str | None = None):
     client = Groq(api_key=settings.groq_api_key)
 
     with open(audio_path, "rb") as f:
-        result = client.audio.translations.create(  # ← translations, not transcriptions
+        result = client.audio.transcriptions.create(
             file=f,
             model="whisper-large-v3",
             response_format="verbose_json",

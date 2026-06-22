@@ -7,7 +7,7 @@ import {
   getThreadStatus,
   chat,
   nameChat,
-  processMedia,
+  analystChat,
 } from "../controllers/ai.controller.js";
 
 const router = express.Router();
@@ -20,6 +20,6 @@ router.get("/ingestion_status/:threadId", getIngestionStatus);
 router.get("/thread_status/:threadId", getThreadStatus);
 router.post("/chat", chat);
 router.post("/nameChat", nameChat);
-router.post("/process_media", processMedia);
+router.post("/analyst_chat", analystChat);
 
 export default router;

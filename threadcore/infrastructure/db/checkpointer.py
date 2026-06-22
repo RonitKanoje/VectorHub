@@ -1,9 +1,10 @@
-from langgraph.checkpoint.postgres import PostgresSaver
-from threadcore.infrastructure.db.session import get_db_connection
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from threadcore.infrastructure.db.session import get_async_db_pool
 
+async def get_checkpointer():
+    pool = get_async_db_pool()
+    checkpointer = AsyncPostgresSaver(conn=pool)
 
-def get_checkpointer():
-    connection = get_db_connection(autocommit=True)
-    checkpointer = PostgresSaver(conn=connection)
-    checkpointer.setup()
-    return checkpointer
+    await checkpointer.setup()
+
+    return checkpointer, pool

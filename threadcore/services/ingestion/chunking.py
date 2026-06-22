@@ -66,3 +66,28 @@ def documents_from_text_chunks(chunks):
 
     return documents
 
+from llama_index.core.node_parser import SemanticSplitterNodeParser
+from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.core import Document as LlamaDocument
+from threadcore.core.config import settings
+
+def documents_from_semantic_text(text: str):
+    embed_model = OllamaEmbedding(
+        model_name=settings.ollama_embedding_model,
+        base_url=settings.ollama_base_url,
+    )
+    splitter = SemanticSplitterNodeParser(
+        buffer_size=1, breakpoint_percentile_threshold=95, embed_model=embed_model
+    )
+    nodes = splitter.get_nodes_from_documents([LlamaDocument(text=text)])
+    
+    documents = []
+    for node in nodes:
+        documents.append(
+            Document(
+                page_content=node.get_content(),
+                metadata={"type": "semantic_chunk"}
+            )
+        )
+    return documents
+

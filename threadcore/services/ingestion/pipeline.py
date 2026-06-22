@@ -1,11 +1,7 @@
 from langsmith import traceable
 from threadcore.infrastructure.cache.redis_client import set_thread_status
-from threadcore.infrastructure.vector.chat_embeddings import store_chat_embeddings
-from threadcore.infrastructure.vector.chat_embeddings import retrieve_chat_embeddings
-from threadcore.infrastructure.vector.long_term_memory import (
-    add_user_messages_to_vector_store,
-    retrieve_user_messages_from_vector_store,
-)
+from threadcore.services.rag.chat_embeddings import store_chat_embeddings
+from threadcore.services.rag.chat_embeddings import retrieve_chat_embeddings
 from threadcore.services.ingestion.chunking import (
     documents_from_text_chunks,
     documents_from_transcript,
@@ -41,6 +37,11 @@ def process_media_upload(
         elif media == "text":
             text_chunks = split_text(path)
             documents = documents_from_text_chunks(text_chunks)
+        elif media == "pdf" or media == "document":
+            from threadcore.services.media.pdf import parse_pdf
+            from threadcore.services.ingestion.chunking import documents_from_semantic_text
+            pdf_text = parse_pdf(path)
+            documents = documents_from_semantic_text(pdf_text)
         else:
             raise ValueError(f"Unsupported media type: {media}")
 
@@ -58,12 +59,3 @@ def process_media_upload(
 def retrieve_answer(query: str, user_id: int, thread_id: str):
     return retrieve_chat_embeddings(query, user_id=user_id, thread_id=thread_id)
 
-
-@traceable(name="Long Term Retrieve Answer")
-def long_term_retrieve_answer(query: str, user_id: int):
-    return retrieve_user_messages_from_vector_store(query, user_id=user_id)
-
-
-@traceable(name="Long Term Store User Facts")
-def long_term_store_user_facts(facts: list[str], user_id: int):
-    return add_user_messages_to_vector_store(facts, user_id=user_id)

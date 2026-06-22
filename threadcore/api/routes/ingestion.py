@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from threadcore.api.dependencies import ensure_thread_access, get_current_user
 from threadcore.api.schemas import ProcessMediaRequest
 from threadcore.infrastructure.cache.redis_client import get_thread_status, set_thread_status
-from threadcore.infrastructure.db.repositories import create_or_update_thread
+from threadcore.services.rag.thread_service import save_or_update_thread as create_or_update_thread
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.ingestion.pipeline import process_media_upload
 

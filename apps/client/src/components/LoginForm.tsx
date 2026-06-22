@@ -25,6 +25,23 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
 
   const verify = async () => {
     try {
+      if (!username) {
+        toast.error("Please enter your username");
+        return;
+      }
+      if (!password) {
+        toast.error("Please enter your password");
+        return;
+      }
+      if (username.includes(" ")) {
+        toast.error("Username cannot contain spaces");
+        return;
+      }
+      if (password.includes(" ")) {
+        toast.error("Password cannot contain spaces");
+        return;
+      }
+
       const response = await api.post("/api/auth/login", {
         username,
         password,

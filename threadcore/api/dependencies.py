@@ -1,7 +1,7 @@
 from fastapi import Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from threadcore.infrastructure.db.repositories import get_thread_for_user
+from threadcore.services.rag.thread_service import get_user_thread as get_thread_for_user
 
 
 def get_chatbot(request: Request):

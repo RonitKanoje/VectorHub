@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, FileText, SquarePlay, Video } from "lucide-react";
+import { AudioLines, FileText, SquarePlay, Video, File } from "lucide-react";
 import OptionsButton from "./OptionsButton";
 import YTModal from "./YTModal";
 import VideoModal from "./VideoModal";
 import AudioModal from "./AudioModal";
 import TextModal from "./TextModal";
+import DocumentModal from "./DocumentModal";
 import type { MediaPayload } from "./MessageInput";
 
-type ActiveModal = "youtube" | "video" | "audio" | "text" | null;
+type ActiveModal = "youtube" | "video" | "audio" | "text" | "document" | null;
 const modalBackdropClass =
   "fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/60 px-4 py-6 backdrop-blur-sm";
 const modalShellClass = "w-full max-w-lg";
@@ -75,6 +76,14 @@ const Options = ({ onClose, onProcessMedia }: OptionsProps) => {
                   onSubmit={(path) => handleSubmit({ media: "text", path })}
                 />
               )}
+
+              {activeModal === "document" && (
+                <DocumentModal
+                  isSubmitting={isSubmitting}
+                  onClose={closeModal}
+                  onSubmit={(file) => handleSubmit({ media: "document", file })}
+                />
+              )}
             </div>
           </div>,
           document.body,
@@ -106,6 +115,12 @@ const Options = ({ onClose, onProcessMedia }: OptionsProps) => {
           icon={<FileText className="h-4 w-4" />}
           text="Text content"
           onClick={() => setActiveModal("text")}
+        />
+
+        <OptionsButton
+          icon={<File className="h-4 w-4" />}
+          text="Document (PDF)"
+          onClick={() => setActiveModal("document")}
         />
       </div>
 

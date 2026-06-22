@@ -37,6 +37,25 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
         return;
       }
 
+      if (username.includes(" ")) {
+        toast.error("Username cannot contain spaces");
+        return;
+      }
+
+      if (password.includes(" ")) {
+        toast.error("Password cannot contain spaces");
+        return;
+      }
+
+      const passwordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!passwordRegex.test(password)) {
+        toast.error(
+          "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character"
+        );
+        return;
+      }
+
       const response = await api.post("/api/auth/register", {
         name,
         username,

@@ -1,33 +1,41 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";  // ← added useRef
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatHeader from "../components/ChatHeader";
 import ChatMessagePanel from "../components/ChatMessagePanel";
-import type { MediaPayload } from "../components/MessageInput";
+import type { MediaPayload, UploadedItem } from "../components/MessageInput";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
 import type { AppDispatch } from "../redux/store";
 import { useThreads } from "../hooks/useThreads";
 import { useConversation } from "../hooks/useConversation";
 import { useMediaProcessing } from "../hooks/useMediaProcessing";
-import { createThreadId } from "../utils/createThreadId";  // ← added
+import { createThreadId } from "../utils/createThreadId";
+
+const MEDIA_LABELS: Record<string, string> = {
+  youtube: "YouTube",
+  audio: "Audio",
+  video: "Video",
+  document: "Document",
+  text: "Text",
+  dataset: "Dataset",
+};
 
 const Chat = () => {
-  const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);  // ← renamed
-  const activeThreadIdRef = useRef<string | null>(null);  // ← added
+  const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
-  // Sync setter — updates both ref (sync) and state (async)
   const setActiveThreadId = useCallback((id: string) => {
     activeThreadIdRef.current = id;
     _setActiveThreadId(id);
   }, []);
 
-  // Hooks
   const {
     threads,
     isLoadingThreads,
@@ -36,7 +44,7 @@ const Chat = () => {
     handleNewChat,
     removeDraftThread,
     setThreads,
-    setDraftThreadIds,  // ← need to expose this from useThreads
+    setDraftThreadIds,
   } = useThreads();
 
   const {
@@ -52,7 +60,6 @@ const Chat = () => {
 
   const { isProcessing, handleProcessMedia } = useMediaProcessing();
 
-  // Derived state
   const activeTitle = useMemo(
     () =>
       threads.find((t) => t.thread_id === activeThreadId)?.title ?? "New Chat",
@@ -61,7 +68,6 @@ const Chat = () => {
 
   const inputDisabled = isLoadingConversation;
 
-  // Effects
   useEffect(() => {
     const id = window.setTimeout(() => void loadThreads(), 0);
     return () => window.clearTimeout(id);
@@ -69,39 +75,50 @@ const Chat = () => {
 
   useEffect(() => {
     if (!activeThreadId) return;
+
+    // ✅ KEY FIX: Don't wipe messages while a send is in progress
+    if (isSending) return;
+
     const isDraft = draftThreadIds.has(activeThreadId);
     const id = window.setTimeout(
       () => void loadConversation(activeThreadId, isDraft),
       0,
     );
     return () => window.clearTimeout(id);
-  }, [activeThreadId, draftThreadIds, loadConversation]);
+  }, [activeThreadId, draftThreadIds, loadConversation, isSending]);
 
-  // Handlers
+  useEffect(() => {
+    setUploadedItems([]);
+  }, [activeThreadId]);
+
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const handleNewChatClick = () =>
     handleNewChat(setActiveThreadId, setActiveStatus, setMessages);
 
-  // ✅ Fixed — reads from ref (sync) not state (async)
   const getEnsuredThread = useCallback(() => {
     if (activeThreadIdRef.current) return activeThreadIdRef.current;
 
     const threadId = createThreadId();
-    activeThreadIdRef.current = threadId;  // sync update immediately
+    activeThreadIdRef.current = threadId;
     setDraftThreadIds((prev) => new Set(prev).add(threadId));
     setThreads((prev) => [{ thread_id: threadId, title: "New Chat" }, ...prev]);
     _setActiveThreadId(threadId);
     return threadId;
   }, [setThreads, setDraftThreadIds]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (
+    content: string,
+    isApproval: boolean = false,
+  ) => {
     await handleSend(
       content,
       activeThreadId,
       getEnsuredThread,
       removeDraftThread,
       setThreads,
+      isApproval,
+      false,
     );
   };
 
@@ -113,6 +130,33 @@ const Chat = () => {
       setActiveStatus,
       loadThreads,
     );
+
+    const name =
+      payload.file?.name ??
+      payload.path ??
+      MEDIA_LABELS[payload.media] ??
+      payload.media;
+
+    setUploadedItems((prev) => [
+      ...prev,
+      { type: payload.media, name, icon: "" },
+    ]);
+
+    if (payload.media === "video" || payload.media === "audio") {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `media-${Date.now()}`,
+          role: "user" as const,
+          content: `Uploaded ${payload.media}: ${name}`,
+          mediaAttachment: { type: payload.media, name },
+        },
+      ]);
+    }
+  };
+
+  const handleRemoveUpload = (index: number) => {
+    setUploadedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleLogout = async () => {
@@ -140,7 +184,7 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-100 text-slate-950">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-950 dark:text-white">
       <ChatSidebar
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={handleToggleSidebar}
@@ -153,7 +197,7 @@ const Chat = () => {
         onLogoutAll={() => void handleLogoutAll()}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col bg-white">
+      <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
         <ChatHeader
           title={activeTitle}
           status={isProcessing ? (activeStatus ?? "processing") : activeStatus}
@@ -162,8 +206,10 @@ const Chat = () => {
           messages={messages}
           disabled={inputDisabled}
           isSending={isSending}
+          uploadedItems={uploadedItems}
           onSend={handleSendMessage}
           onProcessMedia={handleProcessMediaClick}
+          onRemoveUpload={handleRemoveUpload}
         />
       </div>
     </div>
