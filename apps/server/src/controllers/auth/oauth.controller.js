@@ -33,6 +33,7 @@ function buildClientRedirect(path, params) {
 
 export const googleLoginPage = async (req, res) => {
   try {
+    console.log("GOOGLE LOGIN HIT");
     const state = crypto.randomUUID();
     const codeVerifier = generateCodeVerifier();
 
@@ -84,7 +85,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
     try {
       tokens = await google.validateAuthorizationCode(
         code,
-        google_code_verifier
+        google_code_verifier,
       );
     } catch (error) {
       console.error(error);
@@ -122,7 +123,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
 
       const refreshToken = await generateToken(
         { userId: user._id, sessionId: session._id },
-        "7d"
+        "7d",
       );
 
       const accessToken = await generateToken({ userId: user._id }, "15m");
@@ -134,7 +135,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, 
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
       res.clearCookie("google_oauth_state");
@@ -158,7 +159,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
             status: "success",
             message: payload.message,
             accessToken,
-          })
+          }),
         );
       }
 
@@ -184,7 +185,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
           upsert: true,
           new: true,
           setDefaultsOnInsert: true,
-        }
+        },
       );
 
       const session = await Session.create({
@@ -196,7 +197,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
 
       const refreshToken = await generateToken(
         { userId: user._id, sessionId: session._id },
-        "7d"
+        "7d",
       );
 
       const accessToken = await generateToken({ userId: user._id }, "15m");
@@ -232,7 +233,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
             status: "success",
             message: payload.message,
             accessToken,
-          })
+          }),
         );
       }
 
@@ -253,7 +254,7 @@ export const getGoogleLoginCallBack = async (req, res) => {
         buildClientRedirect("/oauth/callback", {
           status: "register",
           message: payload.message,
-        })
+        }),
       );
     }
 

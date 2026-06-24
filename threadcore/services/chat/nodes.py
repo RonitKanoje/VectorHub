@@ -32,24 +32,55 @@ tool_ready_llm = get_tool_ready_llm(tools)
 @traceable
 def chat_node(state: ChatState):
     query = state["user_message"]
+
     context = state.get("context", [])
     meta = state.get("meta", [])
-    personal_context = state.get("personal_context", [])  # ← add this
+    personal_context = state.get("personal_context", [])
 
-    context_text = "\n\n".join(context) if context else "No relevant context found."
-    personal_context_text = (                              # ← add this
+    context_text = (
+        "\n\n".join(context)
+        if context
+        else "No relevant context found."
+    )
+
+    personal_context_text = (
         "\n\n".join(personal_context)
         if personal_context
         else "No personal memory found."
     )
+
+    metadata_lines = []
+
+    for item in meta:
+        item_type = item.get("type", "unknown")
+
+        if "start" in item and "duration" in item:
+            metadata_lines.append(
+                f"- {item_type}: start={item['start']}, duration={item['duration']}"
+            )
+
+        elif "location" in item:
+            metadata_lines.append(
+                f"- {item_type}: {item['location']}"
+            )
+
+        else:
+            metadata_lines.append(
+                f"- {item_type}"
+            )
+
     meta_text = (
-        "\n".join(f"- Mentioned at {item['start']}s (duration {item['duration']}s)" for item in meta)
-        if meta else "No timing metadata available."
+        "\n".join(metadata_lines)
+        if metadata_lines
+        else "No timing metadata available."
     )
 
     messages = state.get("messages", []).copy()
+
     if not messages:
-        messages.append(SystemMessage(content=prompt1.template))
+        messages.append(
+            SystemMessage(content=prompt1.template)
+        )
 
     messages.append(
         HumanMessage(
@@ -71,10 +102,16 @@ User question:
 
     if result.confidence < CONFIDENCE_THRESHOLD:
         tool_response = tool_ready_llm.invoke(messages)
-        return {"messages": [tool_response], "confidence": result.confidence}
 
-    return {"messages": [AIMessage(content=result.answer)], "confidence": result.confidence}
+        return {
+            "messages": [tool_response],
+            "confidence": result.confidence,
+        }
 
+    return {
+        "messages": [AIMessage(content=result.answer)],
+        "confidence": result.confidence,
+    }
 
 @traceable(name="RAG Tool")
 def rag_node(state: ChatState, config) -> dict:

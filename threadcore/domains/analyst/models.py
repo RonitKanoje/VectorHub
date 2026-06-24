@@ -8,6 +8,7 @@ class DatasetDB(Base):
     __tablename__ = "datasets"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
     # Explicit ForeignKey enforcing referential integrity.
     # ondelete="CASCADE" ensures no orphaned datasets if a thread is deleted.
     thread_id = Column(String, ForeignKey("threads.thread_id", ondelete="CASCADE"), nullable=False, index=True)

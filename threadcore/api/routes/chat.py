@@ -31,9 +31,23 @@ async def chat(
     chatbot=Depends(get_chatbot),
     db: Session = Depends(get_db),
 ):
+    print("\n========== CHAT REQUEST ==========")
+    print("USER:", current_user)
+    print("THREAD:", chat_message.thread_id)
+    print("MESSAGE:", chat_message.content[:100])
+
     thread = get_user_thread(db, chat_message.thread_id, current_user)
+
     if thread is None:
-        save_or_update_thread(db, chat_message.thread_id, "New Chat", current_user)
+        print("THREAD NOT FOUND -> CREATING")
+        save_or_update_thread(
+            db,
+            chat_message.thread_id,
+            "New Chat",
+            current_user,
+        )
+    else:
+        print("THREAD FOUND")
 
     config = {
         "configurable": {
@@ -43,50 +57,131 @@ async def chat(
     }
 
     async def event_generator():
-        if getattr(chat_message, "is_tool_approval", False):
-            if chat_message.content.lower() == "yes":
-                stream = chatbot.astream_events(None, config=config, version="v2")
+        try:
+            print("STARTING EVENT GENERATOR")
+
+            if getattr(chat_message, "is_tool_approval", False):
+                print("TOOL APPROVAL FLOW")
+
+                if chat_message.content.lower() == "yes":
+                    print("USER APPROVED TOOL")
+                    stream = chatbot.astream_events(
+                        None,
+                        config=config,
+                        version="v2",
+                    )
+                else:
+                    print("USER DENIED TOOL")
+
+                    from langchain_core.messages import ToolMessage
+
+                    state = await chatbot.aget_state(config)
+
+                    if state.values and "messages" in state.values:
+                        last_message = state.values["messages"][-1]
+
+                        if (
+                            hasattr(last_message, "tool_calls")
+                            and last_message.tool_calls
+                        ):
+                            tool_call = last_message.tool_calls[0]
+
+                            tool_msg = ToolMessage(
+                                tool_call_id=tool_call["id"],
+                                content="User denied permission to use this tool.",
+                                name=tool_call["name"],
+                            )
+
+                            await chatbot.aupdate_state(
+                                config,
+                                {"messages": [tool_msg]},
+                                as_node="tools",
+                            )
+
+                    stream = chatbot.astream_events(
+                        None,
+                        config=config,
+                        version="v2",
+                    )
+
             else:
-                from langchain_core.messages import ToolMessage
-                state = await chatbot.aget_state(config)
+                print("NORMAL CHAT FLOW")
+
+                stream = chatbot.astream_events(
+                    {
+                        "messages": [
+                            HumanMessage(chat_message.content)
+                        ],
+                        "user_message": chat_message.content,
+                    },
+                    config=config,
+                    version="v2",
+                )
+
+            print("STREAM CREATED")
+
+            async for event in stream:
+                try:
+                    event_type = event.get("event")
+                    print("EVENT:", event_type)
+
+                    if event_type == "on_chat_model_stream":
+                        chunk = event["data"]["chunk"].content
+
+                        if chunk and isinstance(chunk, str):
+                            yield (
+                                f"data: "
+                                f"{json.dumps({'type':'chunk','content':chunk})}\n\n"
+                            )
+
+                except Exception as e:
+                    import traceback
+
+                    print("\nERROR PROCESSING EVENT")
+                    traceback.print_exc()
+                    raise
+
+            print("STREAM FINISHED")
+
+            state = await chatbot.aget_state(config)
+
+            if state.next and "tools" in state.next:
+                print("WAITING FOR TOOL APPROVAL")
+
                 if state.values and "messages" in state.values:
-                    last_message = state.values["messages"][-1]
-                    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-                        tool_call = last_message.tool_calls[0]
-                        tool_msg = ToolMessage(
-                            tool_call_id=tool_call["id"],
-                            content="User denied permission to use this tool.",
-                            name=tool_call["name"]
+                    last_msg = state.values["messages"][-1]
+
+                    if (
+                        hasattr(last_msg, "tool_calls")
+                        and last_msg.tool_calls
+                    ):
+                        tool_name = last_msg.tool_calls[0]["name"]
+
+                        yield (
+                            f"data: "
+                            f"{json.dumps({'type':'approval','tool':tool_name})}\n\n"
                         )
-                        await chatbot.aupdate_state(config, {"messages": [tool_msg]}, as_node="tools")
-                stream = chatbot.astream_events(None, config=config, version="v2")
-        else:
-            stream = chatbot.astream_events(
-                {
-                    "messages": [HumanMessage(chat_message.content)],
-                    "user_message": chat_message.content,
-                },
-                config=config,
-                version="v2",
+
+            print("SENDING DONE")
+
+            yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            import traceback
+
+            print("\n========== STREAM CRASH ==========")
+            traceback.print_exc()
+            print("ERROR:", repr(e))
+
+            yield (
+                f"data: "
+                f"{json.dumps({'type':'error','content':str(e)})}\n\n"
             )
 
-        async for event in stream:
-            if event["event"] == "on_chat_model_stream":
-                chunk = event["data"]["chunk"].content
-                if chunk and isinstance(chunk, str):
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
-
-        state = await chatbot.aget_state(config)
-        if state.next and "tools" in state.next:
-            if state.values and "messages" in state.values:
-                last_msg = state.values["messages"][-1]
-                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-                    tool_name = last_msg.tool_calls[0]['name']
-                    yield f"data: {json.dumps({'type': 'approval', 'tool': tool_name})}\n\n"
-
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+    )
 
 
 @router.get("/loadConv/{thread_id}")

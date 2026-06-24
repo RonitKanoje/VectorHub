@@ -1,11 +1,3 @@
-"""
-Data preprocessing pipeline for the Analyst Mode.
-Handles:
-  - Type coercion (object → numeric where possible)
-  - Missing value analysis and imputation strategy
-  - IQR-based outlier detection
-  - Returns a structured quality report
-"""
 import json
 import numpy as np
 import pandas as pd

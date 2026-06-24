@@ -1,9 +1,7 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-
 from threadcore.api.routes.chat import router as chat_router
 from threadcore.api.routes.ingestion import router as ingestion_router
 from threadcore.api.routes.threads import router as threads_router
@@ -13,6 +11,7 @@ from threadcore.infrastructure.db.checkpointer import get_checkpointer
 from threadcore.infrastructure.db.models import init_db
 from threadcore.services.chat.graph import build_chatbot
 from threadcore.services.analyst.graph import build_analyst_app
+from threadcore.api.routes.dataset import router as dataset_router
 
 ## before accepting anything just run this code 
 @asynccontextmanager
@@ -63,7 +62,7 @@ async def read_root():
 async def health_check():
     return {"status": "healthy"}
 
-from threadcore.api.routes.dataset import router as dataset_router
+
 
 app.include_router(chat_router)
 app.include_router(ingestion_router)

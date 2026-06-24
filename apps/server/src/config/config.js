@@ -19,6 +19,8 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
+console.log("THREADCORE_URL =", process.env.THREADCORE_URL);
+
 const config = {
   MONGODB_COMPASS_URL: process.env.MONGODB_COMPASS_URL,
 
@@ -36,5 +38,7 @@ const config = {
   NODE_ENV: process.env.NODE_ENV,
   PORT: process.env.PORT,
 };
+
+console.log("THREADCORE_URL =", config.THREADCORE_URL);
 
 export default config;

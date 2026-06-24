@@ -1,78 +1,96 @@
-"""
-Multi-Agent Analyst LangGraph
-==============================
-Agents (nodes):
-  1. preprocessor_agent  — loads & cleans data, builds quality report
-  2. eda_agent           — generates a rich statistical profile
-  3. insight_agent       — LLM reads profile → proposes 3-5 pandas query strings
-  4. query_executor      — executes each query safely via pandas .query() / eval
-  5. synthesis_agent     — LLM fuses all context and answers the user's question
-"""
+from __future__ import annotations
 import json
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
-
 from threadcore.domains.analyst.models import DatasetDB
+from threadcore.services.analyst.profiler import format_profile_message, profile_dataset
 from threadcore.services.analyst.state import AnalystState
 from threadcore.services.analyst.nodes import (
-    preprocessor_agent,
+    analyst_agent,
     eda_agent,
-    insight_agent,
-    query_executor,
+    preprocessor_agent,
     synthesis_agent,
 )
 
-# ─────────────────────────────────────
+
 # Router
-# ─────────────────────────────────────
 def route_after_start(state: AnalystState) -> str:
-    """Skip preprocessing+EDA if dataset already initialized (follow-up questions)."""
-    if state.get("is_initialized"):
-        return "insight_agent"
+    """
+    First question  → is_initialized is False  → run full pipeline.
+    Follow-up       → is_initialized is True   → jump straight to agent.
+
+    NOTE: schema_ready is checked *inside* analyst_agent as a secondary guard.
+    The router only decides whether to re-run the expensive preprocessing step.
+    """
+    if state.get("is_initialized") and state.get("schema_ready"):
+        return "analyst_agent"
     return "preprocessor_agent"
 
+# Graph definition
 
-# ─────────────────────────────────────
-# Build Graph
-# ─────────────────────────────────────
-workflow = StateGraph(AnalystState)
+_workflow = StateGraph(AnalystState)
 
-workflow.add_node("preprocessor_agent", preprocessor_agent)
-workflow.add_node("eda_agent", eda_agent)
-workflow.add_node("insight_agent", insight_agent)
-workflow.add_node("query_executor", query_executor)
-workflow.add_node("synthesis_agent", synthesis_agent)
+_workflow.add_node("preprocessor_agent", preprocessor_agent)
+_workflow.add_node("eda_agent", eda_agent)
+_workflow.add_node("analyst_agent", analyst_agent)
+_workflow.add_node("synthesis_agent", synthesis_agent)
 
-# Routing: first question runs full pipeline; follow-ups skip preprocessing
-workflow.add_conditional_edges(START, route_after_start, {
-    "preprocessor_agent": "preprocessor_agent",
-    "insight_agent": "insight_agent",
-})
-workflow.add_edge("preprocessor_agent", "eda_agent")
-workflow.add_edge("eda_agent", "insight_agent")
-workflow.add_edge("insight_agent", "query_executor")
-workflow.add_edge("query_executor", "synthesis_agent")
-workflow.add_edge("synthesis_agent", END)
+_workflow.add_conditional_edges(
+    START,
+    route_after_start,
+    {
+        "preprocessor_agent": "preprocessor_agent",
+        "analyst_agent": "analyst_agent",
+    },
+)
 
-analyst_app = workflow.compile()  # Checkpointer injected at call-time via config
+_workflow.add_edge("preprocessor_agent", "eda_agent")
+_workflow.add_edge("eda_agent", "analyst_agent")
+_workflow.add_edge("analyst_agent", "synthesis_agent")
+_workflow.add_edge("synthesis_agent", END)
+
+# Compiled without checkpointer — injected at call-time via config
+analyst_app = _workflow.compile()
 
 
-# ─────────────────────────────────────
-# Build graph with checkpointer (call once at startup)
-# ─────────────────────────────────────
 def build_analyst_app(checkpointer=None):
-    """Re-compile the analyst graph with an optional async checkpointer."""
-    return workflow.compile(checkpointer=checkpointer)
+    """Re-compile with an optional async checkpointer (call once at startup)."""
+    return _workflow.compile(checkpointer=checkpointer)
 
 
-# ─────────────────────────────────────
 # Streaming entry point
-# ─────────────────────────────────────
-async def stream_analyst_response(message: str, thread_id: str, user_id: str, db: Session, app=None):
-    if app is None:
-        app = analyst_app  # fallback to no-checkpointer version
 
+# Progress labels shown to the user as SSE chunks
+_PROGRESS_LABELS: dict[str, str] = {
+    "preprocessor_agent": "Preprocessing data…",
+    "eda_agent":          "Running exploratory analysis…",
+    "analyst_agent":      "Agent thinking and running tools…",
+    "synthesis_agent":    "Synthesising final answer…",
+}
+
+
+async def stream_analyst_response(
+    message: str,
+    thread_id: str,
+    user_id: str,
+    db: Session,
+    app=None,
+):
+    """
+    Async generator that yields SSE-formatted chunks.
+
+    Chunk types:
+      {"type": "profile",  "content": "markdown banner"}  — dataset accepted (pre-graph)
+      {"type": "progress", "content": "label text"}        — node started
+      {"type": "chunk",    "content": "token text"}        — LLM token
+      {"type": "tool",     "content": "tool name: result snippet"}
+      [DONE]
+    """
+    if app is None:
+        app = analyst_app
+
+    # resolve dataset 
     dataset = (
         db.query(DatasetDB)
         .filter_by(thread_id=thread_id, user_id=user_id)
@@ -81,48 +99,63 @@ async def stream_analyst_response(message: str, thread_id: str, user_id: str, db
     )
 
     if not dataset:
-        yield f"data: {json.dumps({'type': 'chunk', 'content': 'Please upload a CSV or Excel dataset first.'})}\n\n"
+        yield _sse({"type": "chunk", "content": "Please upload a CSV or Excel dataset first."})
         yield "data: [DONE]\n\n"
         return
 
+    # ── profile the file (cheap, sync, runs before the graph) ────────────────
+    # This gives us: row/col counts, missing-value summary, memory usage.
+    # On first question we emit it as a confirmation banner before the pipeline
+    # starts.  On follow-ups it is already in state (checkpointer) so we skip.
+    try:
+        dataset_profile = profile_dataset(dataset.file_path)
+        profile_msg = format_profile_message(dataset_profile)
+        yield _sse({"type": "profile", "content": profile_msg})
+    except Exception as exc:
+        dataset_profile = {}
+        yield _sse({"type": "chunk", "content": f"Could not profile dataset: {exc}\n"})
+
+    # initial state 
     inputs: AnalystState = {
-        "messages": [HumanMessage(content=message)],
-        "dataset_path": dataset.file_path,
-        "df_json": "",
+        "messages":             [HumanMessage(content=message)],
+        "dataset_path":         dataset.file_path,
+        "dataset_profile":      dataset_profile,
+        "df_json":              "",
         "preprocessing_report": "",
-        "eda_report": "",
-        "insight_queries": [],
-        "query_results": [],
-        "is_initialized": False,
+        "eda_report":           "",
+        "df_schema":            {},
+        "query_results":        [],
+        "is_initialized":       False,
+        "schema_ready":         False,
     }
 
-    # Thread config enables PostgreSQL checkpoint persistence per session
     config = {"configurable": {"thread_id": f"analyst-{user_id}-{thread_id}"}}
 
+    # event stream 
     async for event in app.astream_events(inputs, config=config, version="v2"):
         kind = event["event"]
         node = event.get("metadata", {}).get("langgraph_node", "")
 
-        # Node entry → emit a progress ping
-        if kind == "on_chain_start" and node in (
-            "preprocessor_agent", "eda_agent", "insight_agent",
-            "query_executor", "synthesis_agent"
-        ):
-            labels = {
-                "preprocessor_agent": "🔧 Preprocessing data…",
-                "eda_agent": "📊 Running EDA…",
-                "insight_agent": "💡 Generating insights…",
-                "query_executor": "⚙️ Executing queries…",
-                "synthesis_agent": "✍️ Synthesising answer…",
-            }
-            label = labels.get(node, "")
-            if label:
-                yield f"data: {json.dumps({'type': 'chunk', 'content': label + chr(10)})}\n\n"
+        # Node entry → progress ping
+        if kind == "on_chain_start" and node in _PROGRESS_LABELS:
+            yield _sse({"type": "progress", "content": _PROGRESS_LABELS[node]})
 
-        # Model streaming tokens (synthesis agent output)
-        if kind == "on_chat_model_stream" and node == "synthesis_agent":
-            chunk = event["data"]["chunk"].content
-            if chunk and isinstance(chunk, str):
-                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+        # LLM streaming tokens (from analyst_agent or synthesis_agent)
+        if kind == "on_chat_model_stream" and node in ("analyst_agent", "synthesis_agent"):
+            chunk_content = event["data"]["chunk"].content
+            if chunk_content and isinstance(chunk_content, str):
+                yield _sse({"type": "chunk", "content": chunk_content})
+
+        # Tool execution completed inside analyst_agent
+        if kind == "on_tool_end" and node == "analyst_agent":
+            tool_name = event.get("name", "tool")
+            output = event["data"].get("output", "")
+            # Send a brief preview (first 120 chars) so the UI can show activity
+            preview = str(output)[:120].replace("\n", " ")
+            yield _sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
 
     yield "data: [DONE]\n\n"
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"

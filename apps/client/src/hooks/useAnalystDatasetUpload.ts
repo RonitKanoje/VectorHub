@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import toast from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import api from "../services/api";
-import { addDataset, addSystemMessage } from "../redux/features/analystSlice";
+import { addDataset } from "../redux/features/analystSlice";
 import type { AppDispatch } from "../redux/store";
 import type { MediaPayload } from "../components/MessageInput";
 
@@ -33,12 +33,6 @@ export const useAnalystDatasetUpload = (threadId: string) => {
               name: payload.file.name,
               thread_id: threadId,
               uploadedAt: new Date().toISOString(),
-            }),
-          );
-          dispatch(
-            addSystemMessage({
-              content: `Dataset uploaded: **${payload.file.name}**. You can now ask questions about your data.`,
-              mediaAttachment: { type: "dataset", name: payload.file.name },
             }),
           );
           toast.success(`${payload.file.name} uploaded successfully`);

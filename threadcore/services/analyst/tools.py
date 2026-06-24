@@ -1,79 +1,252 @@
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+from __future__ import annotations
 import base64
+import json
+import os
 from io import BytesIO
+from typing import Literal, Optional
+import matplotlib
+matplotlib.use("Agg")          # non-interactive backend — safe in async workers
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 from langchain_core.tools import tool
 
-# Simple state variable to hold the current active dataset path
-_current_dataset_path = None
 
-def set_current_dataset(path: str):
-    global _current_dataset_path
+# ── module-level dataset path (set once per request by the agent node) 
+
+_current_dataset_path: str | None = None
+_current_schema: dict | None = None
+
+
+def set_active_dataset(path: str, schema: dict) -> None:
+    """Called by the agent node before every LLM invocation."""
+    global _current_dataset_path, _current_schema
     _current_dataset_path = path
+    _current_schema = schema
+
 
 def _load_df() -> pd.DataFrame:
-    global _current_dataset_path
     if not _current_dataset_path or not os.path.exists(_current_dataset_path):
-        raise ValueError("No active dataset loaded.")
-    if _current_dataset_path.endswith('.csv'):
-        return pd.read_csv(_current_dataset_path)
-    return pd.read_excel(_current_dataset_path)
+        raise ValueError("No active dataset. Upload a CSV/Excel file first.")
+    return (
+        pd.read_csv(_current_dataset_path)
+        if _current_dataset_path.endswith(".csv")
+        else pd.read_excel(_current_dataset_path)
+    )
 
+
+def _validate_columns(*cols: str | None) -> list[str]:
+    """Return list of unknown column names (empty = all valid)."""
+    if _current_schema is None:
+        return []
+    known = set(_current_schema.get("columns", []))
+    return [c for c in cols if c and c not in known]
+
+# Tool 1 — dataset_summary_tool
 @tool
 def dataset_summary_tool() -> str:
-    """Returns basic statistical summary and data types of the dataset."""
-    df = _load_df()
-    summary = df.describe(include='all').to_string()
-    dtypes = df.dtypes.to_string()
-    return f"Data Types:\n{dtypes}\n\nStatistical Summary:\n{summary}"
+    """
+    Returns the full statistical summary (describe), data types, null counts,
+    and the top-5 unique values for every categorical column.
 
+    Use this as the first tool call on any new question to ground your answer
+    in the real data before running queries or visualisations.
+    """
+    df = _load_df()
+
+    summary = {
+        "shape": {"rows": len(df), "cols": len(df.columns)},
+        "dtypes": df.dtypes.astype(str).to_dict(),
+        "null_counts": df.isnull().sum().to_dict(),
+        "describe_numeric": df.describe().round(4).to_dict(),
+        "describe_categorical": {},
+    }
+
+    for col in df.select_dtypes(include=["object", "category"]).columns[:10]:
+        summary["describe_categorical"][col] = (
+            df[col].value_counts().head(5).to_dict()
+        )
+
+    return json.dumps(summary, indent=2, default=str)
+
+
+# Tool 2 — pandas_query_tool
 @tool
 def pandas_query_tool(query: str) -> str:
     """
-    Executes a simple pandas string query. 
-    Pass a string that is valid for df.query(query).
-    """
-    df = _load_df()
-    try:
-        result = df.query(query)
-        return result.to_string()
-    except Exception as e:
-        return f"Error executing query: {e}"
+    Executes a pandas df.query() expression and returns the result as a
+    JSON-serialisable string.
 
-@tool
-def visualization_tool(chart_type: str, x_col: str, y_col: str = None) -> str:
+    Args:
+        query: A valid pandas query string, e.g. "age > 30 and salary < 60000".
+               Column names must match the dataset exactly (case-sensitive).
+
+    Returns:
+        The matching rows as a formatted string, or an error message.
+
+    Important: Only use column names that appear in the dataset schema you
+    were shown at the start of this turn.
     """
-    Generates a chart and returns it as a base64 encoded image string.
-    chart_type should be one of: 'bar', 'line', 'scatter', 'hist'
-    x_col is the column name for the x-axis.
-    y_col is the column name for the y-axis (optional for hist).
-    """
-    df = _load_df()
-    plt.figure(figsize=(10, 6))
-    sns.set_theme(style="darkgrid")
-    
+    # -- extract referenced column names from the query string ----------------
+    # Simple heuristic: split on operators/spaces and check known identifiers.
+    # This is not a full parser but catches most typos before hitting pandas.
+    bad_cols = []
+    if _current_schema:
+        known = set(_current_schema.get("columns", []))
+        tokens = query.replace("(", " ").replace(")", " ").split()
+        candidates = [t.strip('"\'') for t in tokens if t.strip('"\'').isidentifier()]
+        bad_cols = [c for c in candidates if c not in known and not c[0].isdigit()]
+
+    if bad_cols:
+        return (
+            f"ERROR — unknown column(s): {bad_cols}.\n"
+            f"Available columns: {_current_schema.get('columns', [])}"
+        )
+
     try:
-        if chart_type == 'bar':
-            sns.barplot(data=df, x=x_col, y=y_col)
-        elif chart_type == 'line':
-            sns.lineplot(data=df, x=x_col, y=y_col)
-        elif chart_type == 'scatter':
-            sns.scatterplot(data=df, x=x_col, y=y_col)
-        elif chart_type == 'hist':
-            sns.histplot(data=df, x=x_col)
+        df = _load_df()
+        result = df.query(query)
+        if result.empty:
+            return "Query returned 0 rows."
+        return result.head(100).to_string(index=False)
+    except Exception as exc:
+        return f"Query execution error: {exc}"
+
+# Tool 3 — visualization_tool
+@tool
+def visualization_tool(
+    chart_type: Literal["bar", "line", "scatter", "hist", "box", "heatmap"],
+    x_col: str,
+    y_col: Optional[str] = None,
+    hue_col: Optional[str] = None,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Generates a chart and returns it as a base64-encoded PNG data-URI.
+
+    Args:
+        chart_type: One of 'bar', 'line', 'scatter', 'hist', 'box', 'heatmap'.
+        x_col:      Column name for the x-axis (required for all except heatmap).
+        y_col:      Column name for the y-axis (required for bar/line/scatter/box).
+        hue_col:    Optional column name to colour-encode categories.
+        title:      Optional chart title; auto-generated if omitted.
+
+    Returns:
+        Markdown image string embedding the chart as base64 PNG.
+
+    Important: Only use column names that appear in the dataset schema.
+    """
+    bad = _validate_columns(x_col, y_col, hue_col)
+    if bad:
+        return (
+            f"ERROR — unknown column(s): {bad}.\n"
+            f"Available columns: {_current_schema.get('columns', []) if _current_schema else 'unknown'}"
+        )
+
+    try:
+        df = _load_df()
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.set_theme(style="whitegrid", palette="muted")
+
+        if chart_type == "bar":
+            sns.barplot(data=df, x=x_col, y=y_col, hue=hue_col, ax=ax)
+        elif chart_type == "line":
+            sns.lineplot(data=df, x=x_col, y=y_col, hue=hue_col, ax=ax)
+        elif chart_type == "scatter":
+            sns.scatterplot(data=df, x=x_col, y=y_col, hue=hue_col, ax=ax)
+        elif chart_type == "hist":
+            sns.histplot(data=df, x=x_col, hue=hue_col, kde=True, ax=ax)
+        elif chart_type == "box":
+            sns.boxplot(data=df, x=x_col, y=y_col, hue=hue_col, ax=ax)
+        elif chart_type == "heatmap":
+            corr = df.select_dtypes(include="number").corr().round(2)
+            sns.heatmap(corr, annot=True, fmt=".2f", cmap="coolwarm", ax=ax)
         else:
-            return "Unsupported chart type."
-            
-        plt.title(f"{chart_type.capitalize()} Plot of {y_col if y_col else ''} vs {x_col}")
+            return f"Unsupported chart_type '{chart_type}'."
+
+        ax.set_title(title or f"{chart_type.capitalize()} — {y_col or x_col} vs {x_col}")
         plt.tight_layout()
-        
-        # Save to base64
+
         buf = BytesIO()
-        plt.savefig(buf, format="png")
-        plt.close()
-        encoded = base64.b64encode(buf.getvalue()).decode('utf-8')
-        return f"![Chart](data:image/png;base64,{encoded})"
-    except Exception as e:
-        return f"Error generating chart: {e}"
+        fig.savefig(buf, format="png", dpi=120)
+        plt.close(fig)
+        encoded = base64.b64encode(buf.getvalue()).decode()
+        return f"![{ax.get_title()}](data:image/png;base64,{encoded})"
+
+    except Exception as exc:
+        plt.close("all")
+        return f"Visualisation error: {exc}"
+
+# Tool 4 — statistical_tool
+@tool
+def statistical_tool(
+    operation: Literal["correlation", "groupby", "value_counts", "describe_column"],
+    column: Optional[str] = None,
+    group_by: Optional[str] = None,
+    agg_func: Literal["mean", "sum", "count", "median", "std", "min", "max"] = "mean",
+) -> str:
+    """
+    Structured statistical operations — safer than open-ended pandas chains.
+
+    Args:
+        operation:    One of:
+                      'correlation'    → numeric correlation matrix
+                      'groupby'        → group `column` by `group_by`, apply `agg_func`
+                      'value_counts'   → frequency distribution of `column`
+                      'describe_column'→ full describe() for a single `column`
+        column:       Target column name (required for groupby / value_counts /
+                      describe_column).
+        group_by:     Column to group by (required for groupby).
+        agg_func:     Aggregation function for groupby (default: 'mean').
+
+    Returns:
+        JSON-formatted string with the result.
+
+    Important: Only use column names that appear in the dataset schema.
+    """
+    bad = _validate_columns(column, group_by)
+    if bad:
+        return (
+            f"ERROR — unknown column(s): {bad}.\n"
+            f"Available columns: {_current_schema.get('columns', []) if _current_schema else 'unknown'}"
+        )
+
+    try:
+        df = _load_df()
+
+        if operation == "correlation":
+            result = df.select_dtypes(include="number").corr().round(4)
+            return result.to_json()
+
+        if operation == "groupby":
+            if not column or not group_by:
+                return "ERROR — 'groupby' requires both `column` and `group_by`."
+            result = df.groupby(group_by)[column].agg(agg_func).reset_index()
+            result.columns = [group_by, f"{agg_func}_{column}"]
+            return result.to_json(orient="records", indent=2)
+
+        if operation == "value_counts":
+            if not column:
+                return "ERROR — 'value_counts' requires `column`."
+            vc = df[column].value_counts().head(20)
+            return json.dumps(vc.to_dict(), indent=2, default=str)
+
+        if operation == "describe_column":
+            if not column:
+                return "ERROR — 'describe_column' requires `column`."
+            desc = df[column].describe()
+            return json.dumps(desc.to_dict(), indent=2, default=str)
+
+        return f"Unknown operation '{operation}'."
+
+    except Exception as exc:
+        return f"Statistical error: {exc}"
+
+
+# Exported tool list (used by the agent node)
+ANALYST_TOOLS = [
+    dataset_summary_tool,
+    pandas_query_tool,
+    visualization_tool,
+    statistical_tool,
+]

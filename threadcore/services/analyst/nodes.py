@@ -1,176 +1,312 @@
+"""
+Graph nodes for the analyst pipeline.
+
+Node execution order (first question):
+  preprocessor_agent → eda_agent → analyst_agent (tool-loop) → synthesis_agent
+
+Follow-up questions skip directly to:
+  analyst_agent (tool-loop) → synthesis_agent
+
+Schema gate
+-----------
+analyst_agent checks state["schema_ready"] before doing anything.
+If it is False (should never happen with correct routing, but defensive),
+it returns an error message immediately without calling the LLM or any tool.
+
+Tool-use loop
+-------------
+analyst_agent uses a ReAct-style loop:
+  1. Build a system prompt that embeds the FULL df_schema.
+  2. Call the LLM with bound tools.
+  3. If the response contains tool_calls → execute them, append results,
+     loop back to step 2.
+  4. When the LLM returns plain text (no tool calls) → break; that text
+     becomes the final answer passed to synthesis_agent.
+
+Maximum 8 iterations to prevent runaway loops.
+"""
+
+from __future__ import annotations
+
 import json
-import re
+from typing import Any
+
 import pandas as pd
-from langsmith import traceable
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_ollama import ChatOllama
-import httpx
+from langsmith import traceable
 
 from threadcore.core.config import settings
 from threadcore.services.analyst.state import AnalystState
 from threadcore.services.analyst.preprocess import run_preprocessing
-
-# ─────────────────────────────────────
-# LLM Setup
-# ─────────────────────────────────────
-llm = ChatOllama(
-    model=settings.ollama_chat_model,
-    base_url=settings.ollama_base_url,
-    temperature=0.3,
+from threadcore.services.analyst.tools import (
+    ANALYST_TOOLS,
+    set_active_dataset,
 )
 
-llm_sync = ChatOllama(
+# LLMs 
+
+_llm = ChatOllama(
     model=settings.ollama_chat_model,
     base_url=settings.ollama_base_url,
-    temperature=0.3,
+    temperature=0.2,
 )
 
-def load_df(path: str) -> pd.DataFrame:
-    if path.endswith(".csv"):
-        return pd.read_csv(path)
-    return pd.read_excel(path)
+# LLM with tools bound (used inside analyst_agent)
+_llm_with_tools = _llm.bind_tools(ANALYST_TOOLS)
 
-# ─────────────────────────────────────
-# Nodes
-# ─────────────────────────────────────
+MAX_TOOL_ITERATIONS = 8
+
+# Helpers
+
+def _build_df_schema(df: pd.DataFrame) -> dict[str, Any]:
+    """
+    Compact schema dict injected into every system prompt so the LLM knows
+    exactly what columns exist before it picks a tool.
+    """
+    sample_values: dict[str, list] = {}
+    for col in df.columns[:30]:           # cap at 30 columns for prompt size
+        vals = df[col].dropna().unique()[:5].tolist()
+        sample_values[col] = [str(v) for v in vals]
+
+    return {
+        "shape": {"rows": len(df), "cols": len(df.columns)},
+        "columns": df.columns.tolist(),
+        "dtypes": df.dtypes.astype(str).to_dict(),
+        "null_counts": df.isnull().sum().to_dict(),
+        "sample_values": sample_values,
+    }
+
+
+def _schema_system_prompt(schema: dict) -> str:
+    col_lines = "\n".join(
+        f"{col} ({schema['dtypes'].get(col, '?')})  "
+        f"nulls={schema['null_counts'].get(col, 0)}  "
+        f"samples={schema['sample_values'].get(col, [])}"
+        for col in schema["columns"]
+    )
+    return (
+        "You are a senior data analyst with access to four tools:\n"
+        "  dataset_summary_tool  — full describe + dtypes + null counts\n"
+        "  pandas_query_tool     — filter rows with df.query()\n"
+        "  visualization_tool    — generate charts (bar/line/scatter/hist/box/heatmap)\n"
+        "  statistical_tool      — correlation / groupby / value_counts / describe_column\n\n"
+        "DATASET SCHEMA (authoritative — never invent column names):\n"
+        f"  Shape: {schema['shape']['rows']} rows × {schema['shape']['cols']} cols\n"
+        f"{col_lines}\n\n"
+        "Rules:\n"
+        "  1. ONLY use column names listed above.\n"
+        "  2. Call dataset_summary_tool first if the user asks a broad question.\n"
+        "  3. Always call at least one tool before writing the final answer.\n"
+        "  4. Return a clear, markdown-formatted answer after you have gathered data.\n"
+        "  5. If a chart was generated, include its markdown image tag in your answer.\n"
+    )
+
+
+def _execute_tool_call(tool_call: dict) -> str:
+    """Dispatch a single tool_call dict to the matching LangChain tool."""
+    name = tool_call["name"]
+    args = tool_call.get("args", {})
+
+    tool_map = {t.name: t for t in ANALYST_TOOLS}
+    if name not in tool_map:
+        return f"ERROR — unknown tool '{name}'."
+
+    try:
+        return tool_map[name].invoke(args)
+    except Exception as exc:
+        return f"Tool '{name}' raised an error: {exc}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Node 1 — preprocessor_agent
+# ─────────────────────────────────────────────────────────────────────────────
 
 @traceable(name="Analyst Preprocessor")
 def preprocessor_agent(state: AnalystState) -> dict:
-    """Load data, run preprocessing pipeline, store cleaned df preview."""
+    """Load the raw file, run the preprocessing pipeline, persist cleaned CSV."""
     path = state["dataset_path"]
     df, report_json = run_preprocessing(path)
 
     cleaned_path = path.rsplit(".", 1)[0] + "_cleaned.csv"
     df.to_csv(cleaned_path, index=False)
-    df_json = df.head(50).to_json(orient="records")
 
     return {
         "dataset_path": cleaned_path,
         "preprocessing_report": report_json,
-        "df_json": df_json,
+        "df_json": df.head(50).to_json(orient="records"),
         "is_initialized": True,
+        # schema_ready stays False until eda_agent sets it
+        "schema_ready": False,
     }
 
+# Node 2 — eda_agent
 
 @traceable(name="Analyst EDA")
 def eda_agent(state: AnalystState) -> dict:
-    """Build a statistical profile from the cleaned dataset."""
+    """Build df_schema + EDA report. Setting schema_ready=True unlocks the agent."""
     path = state["dataset_path"]
     df = pd.read_csv(path)
 
+    schema = _build_df_schema(df)
+
     describe_full = df.describe(include="all").round(3).to_string()
-    value_counts_top = {}
+    value_counts_top: dict = {}
     for col in df.select_dtypes(include=["object", "category"]).columns[:5]:
         value_counts_top[col] = df[col].value_counts().head(5).to_dict()
 
     eda = {
-        "shape": {"rows": len(df), "cols": len(df.columns)},
-        "columns": df.columns.tolist(),
-        "dtypes": df.dtypes.astype(str).to_dict(),
+        "shape": schema["shape"],
+        "columns": schema["columns"],
+        "dtypes": schema["dtypes"],
         "describe": describe_full,
         "top_categorical_counts": value_counts_top,
-        "null_counts": df.isnull().sum().to_dict(),
+        "null_counts": schema["null_counts"],
     }
 
-    eda_report = json.dumps(eda, indent=2, default=str)
-    return {"eda_report": eda_report}
+    return {
+        "eda_report": json.dumps(eda, indent=2, default=str),
+        "df_schema": schema,
+        "schema_ready": True,      # ← GATE OPENS HERE
+    }
 
+# Node 3 — analyst_agent  (ReAct tool-use loop)
 
-@traceable(name="Analyst Insight")
-def insight_agent(state: AnalystState) -> dict:
-    """LLM reads the preprocessing + EDA report and proposes meaningful queries."""
+@traceable(name="Analyst Agent")
+async def analyst_agent(state: AnalystState) -> dict:
+    """
+    Schema-gated ReAct agent.
+
+    The LLM is given the full df_schema in its system prompt, so it knows every
+    column name and dtype BEFORE it decides which tool to call.  Tool call
+    arguments are validated against the schema inside each tool, with clear
+    error messages returned as ToolMessages so the LLM can self-correct.
+    """
+    # schema gate 
+    if not state.get("schema_ready"):
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "Dataset schema is not yet available. "
+                        "Please wait for preprocessing and EDA to complete."
+                    )
+                )
+            ],
+            "query_results": [],
+        }
+
+    schema: dict = state["df_schema"]
+    dataset_path: str = state["dataset_path"]
+
+    # Register the active dataset + schema in tools module
+    set_active_dataset(dataset_path, schema)
+
+    #  retrieve latest user question 
     user_question = "Provide a comprehensive analysis of this dataset."
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage) and msg.content.strip():
-            user_question = msg.content.strip()
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, HumanMessage):
+            content = str(msg.content).strip()
+            if content:
+                user_question = content
+                break
+
+    # build initial message list 
+    system_prompt = _schema_system_prompt(schema)
+    loop_messages: list = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_question),
+    ]
+
+    tool_outputs: list[dict] = []
+
+    # ReAct loop 
+    for iteration in range(MAX_TOOL_ITERATIONS):
+        response: AIMessage = await _llm_with_tools.ainvoke(loop_messages)
+        loop_messages.append(response)
+
+        # No more tool calls → LLM is done
+        if not response.tool_calls:
             break
 
-    system_msg = SystemMessage(content=(
-        "You are a senior data analyst. "
-        "Respond ONLY with a JSON array of exactly 3 pandas-compatible query strings "
-        "suitable for df.eval() or df.query(). No explanation, no markdown fences. "
-        'Example: ["col_a > 100", "col_b == \'X\'", "col_c.between(10, 50)"]'
-    ))
-    human_msg = HumanMessage(content=(
-        f"USER QUESTION: {user_question}\n\n"
-        f"== PREPROCESSING REPORT ==\n{state.get('preprocessing_report', 'N/A')}\n\n"
-        f"== EDA REPORT ==\n{state.get('eda_report', 'N/A')}\n\n"
-        f"== DATA SAMPLE (first 10 rows) ==\n{state.get('df_json', '')[:2000]}"
-    ))
+        # Execute every tool call the LLM requested
+        for tc in response.tool_calls:
+            result_str = _execute_tool_call(tc)
+            tool_outputs.append({"tool": tc["name"], "result": result_str})
 
-    response = llm_sync.invoke([system_msg, human_msg])
-    raw = response.content.strip()
-    raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`")
+            loop_messages.append(
+                ToolMessage(
+                    tool_call_id=tc["id"],
+                    content=result_str,
+                )
+            )
+    else:
+        # Exceeded max iterations — append a safety stop message
+        loop_messages.append(
+            AIMessage(
+                content=(
+                    "I reached the maximum number of tool calls. "
+                    "Here is my analysis based on the data collected so far."
+                )
+            )
+        )
 
-    match = re.search(r"\[.*?\]", raw, re.DOTALL)
-    queries: list[str] = []
-    if match:
-        try:
-            queries = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            queries = []
+    # The last AIMessage without tool_calls is the agent's final answer
+    final_ai_msg = next(
+        (m for m in reversed(loop_messages) if isinstance(m, AIMessage) and not m.tool_calls),
+        AIMessage(content="No analysis generated."),
+    )
 
-    if not queries:
-        queries = ["index >= 0"]
+    return {
+        "messages": [final_ai_msg],
+        "query_results": tool_outputs,
+    }
 
-    return {"insight_queries": queries}
-
-
-@traceable(name="Analyst Query Executor")
-def query_executor(state: AnalystState) -> dict:
-    """Executes LLM-proposed queries safely and captures results."""
-    path = state["dataset_path"]
-    df = pd.read_csv(path)
-    results = []
-
-    for q in state.get("insight_queries", []):
-        try:
-            try:
-                result_df = df.query(q)
-                result_str = f"Query: `{q}`\nRows returned: {len(result_df)}\n{result_df.head(10).to_string(index=False)}"
-            except Exception:
-                result_val = df.eval(q)
-                result_str = f"Eval: `{q}`\nResult: {result_val.describe().to_string() if hasattr(result_val, 'describe') else str(result_val)[:500]}"
-            results.append(result_str)
-        except Exception as e:
-            results.append(f"Query `{q}` failed: {e}")
-
-    return {"query_results": results}
-
-
+# Node 4 — synthesis_agent
 @traceable(name="Analyst Synthesis")
 async def synthesis_agent(state: AnalystState) -> dict:
-    """Combines all context to answer the user's question with insights."""
-    user_question = "Provide a comprehensive analysis."
-    for msg in reversed(state["messages"]):
-        if isinstance(msg, HumanMessage) and msg.content.strip():
-            user_question = msg.content.strip()
+    """
+    Final pass: takes the agent's tool-grounded answer and polishes it.
+
+    If the agent already returned a thorough answer (>200 chars) this node
+    passes it through unchanged to avoid a redundant LLM call.
+    """
+    agent_answer = ""
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, AIMessage) and msg.content:
+            agent_answer = str(msg.content).strip()
             break
 
-    query_block = "\n\n".join(state.get("query_results", []))
-    outlier_block = ""
+    # Fast-path: agent already gave a substantial answer
+    if len(agent_answer) > 200:
+        return {}   # no state change needed; answer already in messages
+
+    # Short or empty answer => ask the LLM to expand using the EDA report
+    preprocessing_report = state.get("preprocessing_report", "{}")
+    eda_report = state.get("eda_report", "{}")
+
+    system_msg = SystemMessage(
+        content=(
+            "You are a senior data analyst.\n"
+            "The tool-use agent provided only a brief or empty answer.\n"
+            "Use the preprocessing report and EDA report below to write a "
+            "comprehensive markdown analysis covering: data quality, key statistics, "
+            "distributions, outliers, correlations, and recommendations.\n"
+            "Do NOT invent statistics. Only report what the reports contain."
+        )
+    )
+    human_msg = HumanMessage(
+        content=(
+            f"AGENT ANSWER (expand on this):\n{agent_answer}\n\n"
+            f"PREPROCESSING REPORT:\n{preprocessing_report[:4000]}\n\n"
+            f"EDA REPORT:\n{eda_report[:4000]}"
+        )
+    )
+
     try:
-        pp = json.loads(state.get("preprocessing_report", "{}"))
-        outliers = pp.get("outliers_detected", [])
-        if outliers:
-            outlier_block = "OUTLIERS DETECTED:\n" + "\n".join(
-                f"  • {o['column']}: {o['outlier_count']} outliers ({o['outlier_pct']}%)"
-                for o in outliers
-            )
-    except Exception:
-        pass
+        response = await _llm.ainvoke([system_msg, human_msg])
+        content = response.content or agent_answer
+    except Exception as exc:
+        content = f"{agent_answer}\n\n(Synthesis failed: {exc})"
 
-    system_msg = SystemMessage(content=(
-        "You are an expert Data Analyst. "
-        "Answer the user's question comprehensively using the context provided. "
-        "Be concise, insightful, and structured. Use markdown formatting. Include key numbers."
-    ))
-    human_msg = HumanMessage(content=(
-        f"USER QUESTION: {user_question}\n\n"
-        + (f"{outlier_block}\n\n" if outlier_block else "")
-        + f"== QUERY RESULTS ==\n{query_block}\n\n"
-        + f"== EDA SUMMARY ==\n{state.get('eda_report', '')[:3000]}"
-    ))
-
-    response = await llm.ainvoke([system_msg, human_msg])
-    return {"messages": [AIMessage(content=response.content)]}
+    return {"messages": [AIMessage(content=content)]}

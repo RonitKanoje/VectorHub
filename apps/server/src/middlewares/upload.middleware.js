@@ -8,7 +8,7 @@ const storage = multer.diskStorage({
     const threadId = req.body.thread_id || "default_thread";
     
     // Path: data/runtime/uploads/<user_id>/<thread_id>
-    const destDir = path.resolve(process.cwd(), "data", "runtime", "uploads", userId, threadId);
+    const destDir = path.resolve(process.cwd(), "data", "runtime", "uploads", userId, threadId); // at the time of deployment er have to look here 
     
     fs.mkdirSync(destDir, { recursive: true });
     cb(null, destDir);

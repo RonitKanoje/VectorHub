@@ -9,6 +9,8 @@ from threadcore.services.ingestion.chunking import (
 from threadcore.services.media.text import split_text
 from threadcore.services.media.video import extract_audio, transcribe_audio_to_chunks
 from threadcore.services.media.youtube import fetch_transcript
+from threadcore.services.media.pdf import parse_pdf
+from threadcore.services.ingestion.chunking import documents_from_semantic_text
 
 
 @traceable(name="Main Processing")
@@ -38,8 +40,6 @@ def process_media_upload(
             text_chunks = split_text(path)
             documents = documents_from_text_chunks(text_chunks)
         elif media == "pdf" or media == "document":
-            from threadcore.services.media.pdf import parse_pdf
-            from threadcore.services.ingestion.chunking import documents_from_semantic_text
             pdf_text = parse_pdf(path)
             documents = documents_from_semantic_text(pdf_text)
         else:
