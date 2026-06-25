@@ -22,11 +22,9 @@ def process_media_upload(
     language: str | None = None,
 ):
     try:
-        print("pipelineee")
         set_thread_status(thread_id, "processing")
 
         if media == "youtube":
-            print("yt pipelineee")
             transcript_chunks = fetch_transcript(path)
             documents = documents_from_transcript(transcript_chunks)
         elif media == "audio":

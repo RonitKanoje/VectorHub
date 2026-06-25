@@ -19,7 +19,8 @@ def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id"
 
 @router.get("/threads", response_model=List[ThreadResponse])
 async def get_threads(
+    mode: str = "chat",
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):
-    return get_user_threads(db, current_user)
+    return get_user_threads(db, current_user, mode)

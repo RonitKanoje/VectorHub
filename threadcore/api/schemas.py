@@ -43,5 +43,6 @@ class ChatNameRequest(BaseModel):
 class ThreadResponse(BaseModel):
     thread_id: str
     title: str
+    mode: str
 
     model_config = ConfigDict(from_attributes=True)

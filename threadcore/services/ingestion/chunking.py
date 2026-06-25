@@ -6,7 +6,7 @@ from llama_index.core import Document as LlamaDocument
 from threadcore.core.config import settings
 
 
-def cluster_transcript_chunks(chunks, group_size: int = 7):
+def cluster_transcript_chunks(chunks, group_size: int = 8):
     clustered = []
 
     for index in range(0, len(chunks), group_size):

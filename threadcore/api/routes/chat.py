@@ -11,6 +11,7 @@ from threadcore.services.rag.thread_service import (
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.chat.graph import load_conversation
 from threadcore.services.chat.naming import title_from_message
+from langchain_core.messages import ToolMessage
 
 
 router = APIRouter(tags=["chat"])
@@ -31,23 +32,16 @@ async def chat(
     chatbot=Depends(get_chatbot),
     db: Session = Depends(get_db),
 ):
-    print("\n========== CHAT REQUEST ==========")
-    print("USER:", current_user)
-    print("THREAD:", chat_message.thread_id)
-    print("MESSAGE:", chat_message.content[:100])
-
     thread = get_user_thread(db, chat_message.thread_id, current_user)
 
     if thread is None:
-        print("THREAD NOT FOUND -> CREATING")
         save_or_update_thread(
             db,
             chat_message.thread_id,
             "New Chat",
             current_user,
+            mode="chat"
         )
-    else:
-        print("THREAD FOUND")
 
     config = {
         "configurable": {
@@ -71,9 +65,8 @@ async def chat(
                         version="v2",
                     )
                 else:
-                    print("USER DENIED TOOL")
 
-                    from langchain_core.messages import ToolMessage
+                    
 
                     state = await chatbot.aget_state(config)
 
@@ -206,7 +199,7 @@ async def name_chat(
 
     try:
         title = title_from_message(HumanMessage(content=payload.message))
-        save_or_update_thread(db, payload.thread_id, title, current_user)
+        save_or_update_thread(db, payload.thread_id, title, current_user, mode="chat")
         return {"title": title}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="name_chat_failed") from exc

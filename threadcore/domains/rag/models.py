@@ -9,6 +9,7 @@ class ThreadDB(Base):
 
     thread_id = Column(String, primary_key=True, index=True)
     title = Column(String, nullable=False, default="New Chat")
+    mode = Column(String, nullable=False, default="chat", index=True)
     user_id = Column(String, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
@@ -17,7 +18,7 @@ class ThreadDB(Base):
         onupdate=func.now(),
     )
 
-    # Establish relationship to datasets for cascading and easy access
+    # Establish relationship to datasets for cascading and easy accessF
     datasets = relationship("DatasetDB", back_populates="thread", cascade="all, delete-orphan")
 
 

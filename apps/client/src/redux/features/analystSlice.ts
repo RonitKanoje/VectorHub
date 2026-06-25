@@ -69,6 +69,9 @@ const analystSlice = createSlice({
     clearMessages(state) {
       state.messages = [];
     },
+    setMessages(state, action: PayloadAction<AnalystMessage[]>) {
+      state.messages = action.payload;
+    },
   },
 });
 
@@ -81,6 +84,7 @@ export const {
   addDataset,
   setActiveDataset,
   clearMessages,
+  setMessages,
 } = analystSlice.actions;
 
 export default analystSlice.reducer;

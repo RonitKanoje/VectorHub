@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
@@ -13,10 +13,18 @@ import { toggleTheme } from "../redux/features/themeSlice";
 import { useAnalystAudioRecorder } from "../hooks/useAnalystAudioRecorder";
 import { useAnalystDatasetUpload } from "../hooks/useAnalystDatasetUpload";
 import { useAnalystChat } from "../hooks/useAnalystChat";
+import { useThreads } from "../hooks/useThreads";
+import { useAnalystConversation } from "../hooks/useAnalystConversation";
 import type { RootState, AppDispatch } from "../redux/store";
 import { createThreadId } from "../utils/createThreadId";
+import { setMessages } from "../redux/features/analystSlice";
 
 const Analyst = () => {
+  const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [value, setValue] = useState("");
+
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
@@ -26,19 +34,70 @@ const Analyst = () => {
   const mode = useSelector((s: RootState) => s.theme.mode);
   const token = useSelector((s: RootState) => s.auth.accessToken);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [value, setValue] = useState("");
-  const [threadId] = useState(() => createThreadId()); // by doing this we are preventing the change of value at the time of re-rendering we avoided useEffect because here we are not doing any kind of heavy calc so avoid that 
+  const setActiveThreadId = useCallback((id: string) => {
+    activeThreadIdRef.current = id;
+    _setActiveThreadId(id);
+  }, []);
 
-  const { handleSend } = useAnalystChat(threadId, token);
-  const { handleProcessMedia } = useAnalystDatasetUpload(threadId);
+  const {
+    threads,
+    isLoadingThreads,
+    draftThreadIds,
+    loadThreads,
+    handleNewChat,
+    setThreads,
+    setDraftThreadIds,
+  } = useThreads();
+
+  const { isLoadingConversation, loadConversation } = useAnalystConversation();
+
+  useEffect(() => {
+    const id = window.setTimeout(() => void loadThreads("analyst"), 0);
+    return () => window.clearTimeout(id);
+  }, [loadThreads]);
+
+  useEffect(() => {
+    if (!activeThreadId) return;
+
+    if (isSending) return;
+
+    const isDraft = draftThreadIds.has(activeThreadId);
+    const id = window.setTimeout(
+      () => void loadConversation(activeThreadId, isDraft),
+      0,
+    );
+    return () => window.clearTimeout(id);
+  }, [activeThreadId, draftThreadIds, loadConversation, isSending]);
+
+  const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+
+  const handleNewChatClick = () =>
+    handleNewChat(setActiveThreadId, () => { }, () => dispatch(setMessages([])));
+
+  const getEnsuredThread = useCallback(() => {
+    if (activeThreadIdRef.current) return activeThreadIdRef.current;
+
+    const threadId = createThreadId();
+    activeThreadIdRef.current = threadId;
+    setDraftThreadIds((prev) => new Set(prev).add(threadId));
+    setThreads((prev) => [{ thread_id: threadId, title: "New Analyst Chat" }, ...prev]);
+    _setActiveThreadId(threadId);
+    return threadId;
+  }, [setThreads, setDraftThreadIds]);
+
+  const { handleSend } = useAnalystChat(token);
+
+  const { handleProcessMedia } = useAnalystDatasetUpload(getEnsuredThread);
+
   const { isRecording, isTranscribing, toggleRecording } = useAnalystAudioRecorder({
     onTranscript: (text) => setValue((p) => (p + " " + text).trim()),
   });
 
-  const submitMessage = (content: string) => {
+  const submitMessage = async (content: string) => {
     setValue("");
-    void handleSend(content);
+    const threadId = getEnsuredThread();
+
+    await handleSend(content, threadId);
   };
 
   const handleLogout = async () => {
@@ -69,15 +128,12 @@ const Analyst = () => {
     <div className="flex h-screen w-full overflow-hidden bg-slate-950 text-white">
       <ChatSidebar
         isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen((p) => !p)}
-        threads={uploadedDatasets.map((d) => ({
-          thread_id: d.id,
-          title: d.name,
-        }))}
-        activeThreadId={uploadedDatasets[0]?.id ?? null}
-        isLoadingThreads={false}
-        onNewChat={() => navigate("/analyst")}
-        onSelectThread={() => {}}
+        onToggleSidebar={handleToggleSidebar}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        isLoadingThreads={isLoadingThreads}
+        onNewChat={handleNewChatClick}
+        onSelectThread={setActiveThreadId}
         onLogout={() => void handleLogout()}
         onLogoutAll={() => void handleLogoutAll()}
       />
@@ -85,7 +141,7 @@ const Analyst = () => {
       <div className="flex min-w-0 flex-1 flex-col">
         <AnalystHeader mode={mode} onToggleTheme={() => dispatch(toggleTheme())} />
 
-        <AnalystMessageList messages={messages} onSelectPrompt={submitMessage} />
+        <AnalystMessageList messages={messages} />
 
         <AnalystDatasetPills datasets={uploadedDatasets} />
 

@@ -24,7 +24,7 @@ async def process_media(
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):
-    create_or_update_thread(db, payload.thread_id, "New Chat", current_user)
+    create_or_update_thread(db, payload.thread_id, "New Chat", current_user, mode="chat")
     set_thread_status(payload.thread_id, "queued")
     background_tasks.add_task(
         process_media_upload,

@@ -56,7 +56,8 @@ async def process_dataset(
             db,
             request.thread_id,
             "New Analyst Chat",
-            x_user_id
+            x_user_id,
+            mode="analyst"
         )
 
     try:
@@ -110,7 +111,8 @@ async def analyst_chat(
             db,
             request.thread_id,
             "New Analyst Chat",
-            x_user_id
+            x_user_id,
+            mode="analyst"
         )
 
     analyst_app = getattr(req.app.state, "analyst_app", None)

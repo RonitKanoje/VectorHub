@@ -8,7 +8,7 @@ interface UseThreadsReturn {
   threads: ChatThread[]; // Thread id and title
   isLoadingThreads: boolean;
   draftThreadIds: Set<string>;
-  loadThreads: () => Promise<void>; // it will return promise of type void
+  loadThreads: (mode?: "chat" | "analyst") => Promise<void>; // it will return promise of type void
   handleNewChat: (
     setActiveThreadId: (id: string) => void,
     setActiveStatus: (status: string | null) => void,
@@ -31,10 +31,10 @@ export function useThreads(): UseThreadsReturn {
   );
 
   // using callback so that it does not call server everytime on rendering of the ui
-  const loadThreads = useCallback(async () => {
+  const loadThreads = useCallback(async (mode: "chat" | "analyst" = "chat") => {
     setIsLoadingThreads(true);
     try {
-      const response = await api.get<ChatThread[]>("/api/ai/threads");
+      const response = await api.get<ChatThread[]>(`/api/ai/threads?mode=${mode}`);
       const nextThreads = response.data || [];
       setThreads(nextThreads);
     } catch {

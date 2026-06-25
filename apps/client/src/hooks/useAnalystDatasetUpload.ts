@@ -9,12 +9,14 @@ import type { MediaPayload } from "../components/MessageInput";
 /**
  * Encapsulates the dataset upload flow: POST /api/upload -> Redux dispatches + toast.
  */
-export const useAnalystDatasetUpload = (threadId: string) => {
+export const useAnalystDatasetUpload = (getEnsuredThread: () => string) => {
   const dispatch = useDispatch<AppDispatch>();
 
   const handleProcessMedia = useCallback(
     async (payload: MediaPayload) => {
       if (!payload.file) return;
+
+      const threadId = getEnsuredThread();
 
       const fd = new FormData();
       fd.append("file", payload.file);
@@ -41,7 +43,7 @@ export const useAnalystDatasetUpload = (threadId: string) => {
         toast.error("Upload failed");
       }
     },
-    [dispatch, threadId],
+    [dispatch, getEnsuredThread],
   );
 
   return { handleProcessMedia };

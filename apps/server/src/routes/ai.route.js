@@ -3,6 +3,7 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
   getThreads,
   loadConversation,
+  loadAnalystConversation,
   getIngestionStatus,
   getThreadStatus,
   chat,
@@ -16,6 +17,7 @@ router.use(requireAuth); // middleware
 
 router.get("/threads", getThreads);
 router.get("/loadConv/:threadId", loadConversation);
+router.get("/load_analyst_conv/:threadId", loadAnalystConversation);
 router.get("/ingestion_status/:threadId", getIngestionStatus);
 router.get("/thread_status/:threadId", getThreadStatus);
 router.post("/chat", chat);

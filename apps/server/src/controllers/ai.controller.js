@@ -3,11 +3,16 @@ import { normalizeYoutubeInput } from "../utils/youtube.js";
 import { forwardToThreadCore, forwardStreamToThreadCore } from "../utils/threadcore.js";
 
 export async function getThreads(req, res) {
-  return forwardToThreadCore(req, res, "/threads");
+  const mode = req.query.mode || "chat";
+  return forwardToThreadCore(req, res, `/threads?mode=${mode}`);
 }
 
 export async function loadConversation(req, res) {
   return forwardToThreadCore(req, res, `/loadConv/${req.params.threadId}`);
+}
+
+export async function loadAnalystConversation(req, res) {
+  return forwardToThreadCore(req, res, `/load_analyst_conv/${req.params.threadId}`);
 }
 
 export async function getIngestionStatus(req, res) {

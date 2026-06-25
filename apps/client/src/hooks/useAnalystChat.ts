@@ -10,16 +10,17 @@ import {
   setIsSending,
 } from "../redux/features/analystSlice";
 import type { AppDispatch } from "../redux/store";
+import { store } from "../redux/store";
 
 /**
  * Encapsulates sending a message + reading the streamed SSE response
  * from /api/ai/analyst_chat, dispatching chunks into Redux as they arrive.
  */
-export const useAnalystChat = (threadId: string, token: string | null) => {
+export const useAnalystChat = (token: string | null) => {
   const dispatch = useDispatch<AppDispatch>();
 
   const handleSend = useCallback(
-    async (content: string) => {
+    async (content: string, threadId: string) => {
       if (!content.trim()) return;
 
       dispatch(addUserMessage(content));
@@ -45,6 +46,17 @@ export const useAnalystChat = (threadId: string, token: string | null) => {
 
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        // Try to name the chat on the first message
+        const isFirstMessage = store.getState().analyst.messages.length === 2; // user + pending assistant
+        if (isFirstMessage) {
+          api
+            .post<{ title: string }>("/api/ai/nameChat", {
+              message: content,
+              thread_id: threadId,
+            })
+            .catch((e) => console.error("Could not name chat", e));
         }
 
         const reader = response.body?.getReader(); // stream reader 
@@ -99,7 +111,7 @@ export const useAnalystChat = (threadId: string, token: string | null) => {
         dispatch(setIsSending(false));
       }
     },
-    [dispatch, token, threadId],
+    [dispatch, token],
   );
 
   return { handleSend };
