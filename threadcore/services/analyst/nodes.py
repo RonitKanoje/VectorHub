@@ -99,7 +99,10 @@ def _schema_system_prompt(schema: dict) -> str:
         "  2. Call dataset_summary_tool first if the user asks a broad question.\n"
         "  3. Always call at least one tool before writing the final answer.\n"
         "  4. Return a clear, markdown-formatted answer after you have gathered data.\n"
-        "  5. If a chart was generated, include its markdown image tag in your answer.\n"
+        "  5. When you call visualization_tool, the chart will be displayed automatically.\n"
+        "     Do NOT include any image tags or base64 data in your text response.\n"
+        "     Simply describe the chart in words (e.g. 'I generated a bar chart of X vs Y.').\n"
+        "  6. Never output base64 strings or image data — charts are rendered separately.\n"
     )
 
 
@@ -238,6 +241,7 @@ async def analyst_agent(state: AnalystState) -> dict:
                 ToolMessage(
                     tool_call_id=tc["id"],
                     content=result_str,
+                    name=tc["name"],   # required for load_analyst_conv to filter by tool
                 )
             )
     else:
@@ -251,14 +255,19 @@ async def analyst_agent(state: AnalystState) -> dict:
             )
         )
 
-    # The last AIMessage without tool_calls is the agent's final answer
-    final_ai_msg = next(
-        (m for m in reversed(loop_messages) if isinstance(m, AIMessage) and not m.tool_calls),
-        AIMessage(content="No analysis generated."),
-    )
+    # Collect messages to persist in state:
+    # - All AIMessages with tool_calls (so LangGraph can trace the ReAct loop)
+    # - All ToolMessages (so visualizations survive checkpointing and reload)
+    # - The final AIMessage (the plain-text answer)
+    # We skip the opening SystemMessage and HumanMessage — they are
+    # reconstructed from state on every turn and don't need to be checkpointed.
+    messages_to_persist = [
+        m for m in loop_messages
+        if not isinstance(m, SystemMessage) and not isinstance(m, HumanMessage)
+    ]
 
     return {
-        "messages": [final_ai_msg],
+        "messages": messages_to_persist,
         "query_results": tool_outputs,
     }
 

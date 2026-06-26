@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
@@ -22,6 +22,9 @@ import { setMessages } from "../redux/features/analystSlice";
 const Analyst = () => {
   const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
+  // Tracks whether isSending was previously true so we can distinguish
+  // "stream just ended" (isSending: true→false) from "thread switched".
+  const wasStreamingRef = useRef(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [value, setValue] = useState("");
 
@@ -42,11 +45,9 @@ const Analyst = () => {
   const {
     threads,
     isLoadingThreads,
-    draftThreadIds,
     loadThreads,
     handleNewChat,
     setThreads,
-    setDraftThreadIds,
   } = useThreads();
 
   const { isLoadingConversation, loadConversation } = useAnalystConversation();
@@ -56,18 +57,31 @@ const Analyst = () => {
     return () => window.clearTimeout(id);
   }, [loadThreads]);
 
+  // Keep wasStreamingRef in sync with isSending so we can detect the
+  // moment streaming finishes inside the conversation-reload effect.
+  useEffect(() => {
+    if (isSending) {
+      wasStreamingRef.current = true;
+    }
+  }, [isSending]);
+
   useEffect(() => {
     if (!activeThreadId) return;
 
-    if (isSending) return;
+    // Skip reload immediately after streaming finishes — the streamed Redux
+    // state (including visualizations) is the source of truth at this point.
+    // The LangGraph checkpointer may not have persisted the state yet either.
+    if (wasStreamingRef.current && !isSending) {
+      wasStreamingRef.current = false; // reset for next message
+      return;
+    }
 
-    const isDraft = draftThreadIds.has(activeThreadId);
     const id = window.setTimeout(
-      () => void loadConversation(activeThreadId, isDraft),
+      () => void loadConversation(activeThreadId),
       0,
     );
     return () => window.clearTimeout(id);
-  }, [activeThreadId, draftThreadIds, loadConversation, isSending]);
+  }, [activeThreadId, loadConversation, isSending]);
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
@@ -79,15 +93,13 @@ const Analyst = () => {
 
     const threadId = createThreadId();
     activeThreadIdRef.current = threadId;
-    setDraftThreadIds((prev) => new Set(prev).add(threadId));
-    setThreads((prev) => [{ thread_id: threadId, title: "New Analyst Chat" }, ...prev]);
     _setActiveThreadId(threadId);
     return threadId;
-  }, [setThreads, setDraftThreadIds]);
+  }, []);
 
   const { handleSend } = useAnalystChat(token);
 
-  const { handleProcessMedia } = useAnalystDatasetUpload(getEnsuredThread);
+  const { handleProcessMedia } = useAnalystDatasetUpload();
 
   const { isRecording, isTranscribing, toggleRecording } = useAnalystAudioRecorder({
     onTranscript: (text) => setValue((p) => (p + " " + text).trim()),
@@ -97,7 +109,7 @@ const Analyst = () => {
     setValue("");
     const threadId = getEnsuredThread();
 
-    await handleSend(content, threadId);
+    await handleSend(content, threadId, setThreads);
   };
 
   const handleLogout = async () => {
@@ -153,7 +165,7 @@ const Analyst = () => {
           isRecording={isRecording}
           isTranscribing={isTranscribing}
           onToggleRecording={toggleRecording}
-          onProcessMedia={handleProcessMedia}
+          onProcessMedia={(payload) => handleProcessMedia(payload, getEnsuredThread, () => loadThreads("analyst"))}
         />
       </div>
     </div>

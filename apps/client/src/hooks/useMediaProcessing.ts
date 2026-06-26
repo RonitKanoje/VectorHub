@@ -3,14 +3,13 @@ import toast from "react-hot-toast";
 import api from "../services/api";
 import { pollThreadStatus } from "../utils/pollThreadStatus";
 import { getApiErrorMessage } from "../utils/errors";
-import type { MediaPayload } from "../components/MessageInput";
+import type { MediaPayload } from "../types";
 
 interface UseMediaProcessingReturn {
   isProcessing: boolean;
   handleProcessMedia: (
     payload: MediaPayload,
     ensureActiveThread: () => string,
-    removeDraftThread: (id: string) => void,
     setActiveStatus: (status: string | null) => void,
     loadThreads: () => Promise<void>,
   ) => Promise<void>;
@@ -23,7 +22,6 @@ export function useMediaProcessing(): UseMediaProcessingReturn {
   const handleProcessMedia = async (
     payload: MediaPayload,
     ensureActiveThread: () => string,
-    removeDraftThread: (id: string) => void,
     setActiveStatus: (status: string | null) => void,
     loadThreads: () => Promise<void>,
   ) => {
@@ -38,7 +36,7 @@ export function useMediaProcessing(): UseMediaProcessingReturn {
       if (payload.file) {
         const formData = new FormData();
         formData.append("file", payload.file);
-        formData.append("media", payload.media);
+        formData.append("media", payload.media);          
         formData.append("thread_id", threadId);
         if (payload.language) formData.append("language", payload.language);
         if (payload.path) formData.append("path", payload.path);
@@ -55,7 +53,16 @@ export function useMediaProcessing(): UseMediaProcessingReturn {
 
       await api.post("/api/upload", data, config);
 
-      removeDraftThread(threadId);
+      try {
+        await api.post("/api/ai/nameThreadFromUpload", {
+          thread_id: threadId,
+          media: payload.media,
+          filename: payload.file?.name || payload.path || "Upload",
+        });
+      } catch (err) {
+        console.error("Failed to name thread from upload", err);
+      }
+
       toast.success("Processing started");
 
       // Cancel any existing poll and start a fresh one

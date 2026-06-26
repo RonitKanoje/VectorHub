@@ -1,13 +1,10 @@
 from typing import List
-
 from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
-
 from threadcore.api.dependencies import get_current_user
 from threadcore.api.schemas import ThreadResponse
 from threadcore.services.rag.thread_service import get_user_threads
 from threadcore.infrastructure.db.session import get_db
-
 
 router = APIRouter(tags=["threads"])
 
@@ -23,4 +20,13 @@ async def get_threads(
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):
-    return get_user_threads(db, current_user, mode)
+    print("=" * 50)
+    print("MODE:", mode)
+    print("USER:", current_user)
+
+    threads = get_user_threads(db, current_user, mode)
+
+    print("THREADS:", threads)
+    print("COUNT:", len(threads))
+
+    return threads

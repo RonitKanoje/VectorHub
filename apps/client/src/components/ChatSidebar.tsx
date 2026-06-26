@@ -10,16 +10,12 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-
-export interface ChatThread {
-  thread_id: string;
-  title: string;
-}
+import type { Thread } from "../types";
 
 interface ChatSidebarProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  threads: ChatThread[];
+  threads: Thread[];
   activeThreadId: string | null;
   isLoadingThreads: boolean;
   onNewChat: () => void;

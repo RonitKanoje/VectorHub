@@ -5,6 +5,7 @@ import api from "../services/api";
 import {
   addUserMessage,
   appendChunk,
+  appendVisualization,
   finalizeResponse,
   setError,
   setIsSending,
@@ -20,7 +21,11 @@ export const useAnalystChat = (token: string | null) => {
   const dispatch = useDispatch<AppDispatch>();
 
   const handleSend = useCallback(
-    async (content: string, threadId: string) => {
+    async (
+      content: string,
+      threadId: string,
+      setThreads: React.Dispatch<React.SetStateAction<any[]>>
+    ) => {
       if (!content.trim()) return;
 
       dispatch(addUserMessage(content));
@@ -55,6 +60,12 @@ export const useAnalystChat = (token: string | null) => {
             .post<{ title: string }>("/api/ai/nameChat", {
               message: content,
               thread_id: threadId,
+            })
+            .then((titleResponse) => {
+              setThreads((prev) => [
+                { thread_id: threadId, title: titleResponse.data.title },
+                ...prev.filter(t => t.thread_id !== threadId),
+              ]);
             })
             .catch((e) => console.error("Could not name chat", e));
         }
@@ -92,6 +103,14 @@ export const useAnalystChat = (token: string | null) => {
 
               if (data.type === "chunk") {
                 dispatch(appendChunk(data.content));
+              } else if (data.type === "visualization") {
+                dispatch(appendVisualization(data));
+              } else if (data.type === "progress") {
+                dispatch(appendChunk(`\n_${data.content}_\n`));
+              } else if (data.type === "tool") {
+                dispatch(appendChunk(`\n> ${data.content}\n`));
+              } else if (data.type === "profile") {
+                dispatch(appendChunk(`\n${data.content}\n`));
               }
             } catch {
               // Ignore malformed chunks

@@ -9,6 +9,7 @@ def process_and_save_dataset(
     file_path: str,
     thread_id: str,
     user_id: str,
+    document_name: str | None = None,
 ):
     """Service to preprocess and save dataset metadata."""
 
@@ -18,7 +19,7 @@ def process_and_save_dataset(
         db=db,
         thread_id=thread_id,
         user_id=user_id,
-        name=os.path.basename(file_path),
+        name=document_name or os.path.basename(file_path),
         file_path=file_path,
         file_type=file_path.split(".")[-1],
         row_count=str(len(df)),

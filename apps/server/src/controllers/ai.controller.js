@@ -65,6 +65,13 @@ export async function nameChat(req, res) {
   });
 }
 
+export async function nameThreadFromUpload(req, res) {
+  return forwardToThreadCore(req, res, "/nameThreadFromUpload", {
+    method: "POST",
+    body: req.body,
+  });
+}
+
 export async function processMedia(req, res) {
   try {
     const payload = await buildProcessMediaPayload(req);
@@ -93,6 +100,7 @@ async function buildProcessMediaPayload(req) {
       thread_id,
       language: language || null,
       path: await persistBase64File(file, req.userId, thread_id),
+      document_name: file.name,
     };
   }
 
@@ -106,6 +114,7 @@ async function buildProcessMediaPayload(req) {
     thread_id,
     language: language || null,
     path: media === "youtube" ? normalizeYoutubeInput(sourcePath) : sourcePath,
+    document_name: req.body.document_name || null,
   };
 }
 

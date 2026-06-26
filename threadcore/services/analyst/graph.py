@@ -141,17 +141,40 @@ async def stream_analyst_response(
             yield _sse({"type": "progress", "content": _PROGRESS_LABELS[node]})
 
         # LLM streaming tokens (from analyst_agent or synthesis_agent)
+        # Guard: skip any chunk that looks like base64 image data — the LLM
+        # should never emit these, but this acts as a final safety net.
         if kind == "on_chat_model_stream" and node in ("analyst_agent", "synthesis_agent"):
             chunk_content = event["data"]["chunk"].content
             if chunk_content and isinstance(chunk_content, str):
-                yield _sse({"type": "chunk", "content": chunk_content})
+                # Drop chunks that are part of a data URI (base64 leaking into text)
+                if "data:image" not in chunk_content and "base64," not in chunk_content:
+                    yield _sse({"type": "chunk", "content": chunk_content})
 
         # Tool execution completed inside analyst_agent
         if kind == "on_tool_end" and node == "analyst_agent":
-            tool_name = event.get("name", "tool")
-            output = event["data"].get("output", "")
-            # Send a brief preview (first 120 chars) so the UI can show activity
-            preview = str(output)[:120].replace("\n", " ")
+            tool_name = event.get("name", "")
+            raw_output = event["data"].get("output", "")
+
+            # Normalise: LangGraph may wrap the return value in various ways
+            if hasattr(raw_output, "content"):
+                output_str = raw_output.content
+            elif isinstance(raw_output, str):
+                output_str = raw_output
+            else:
+                output_str = json.dumps(raw_output) if raw_output else ""
+
+            if tool_name == "visualization_tool":
+                try:
+                    vis_data = json.loads(output_str)
+                    if isinstance(vis_data, dict) and vis_data.get("type") == "visualization":
+                        yield _sse(vis_data)
+                except Exception:
+                    pass
+                # Don't send a text preview for visualizations — the image IS the preview
+                continue
+
+            # For all other tools: send a brief activity preview
+            preview = output_str[:120].replace("\n", " ")
             yield _sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
 
     yield "data: [DONE]\n\n"

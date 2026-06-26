@@ -12,3 +12,4 @@ def init_db() -> None:
     Safe to call on every application startup.
     """
     Base.metadata.create_all(bind=engine) ## creating all registered tables inside base
+

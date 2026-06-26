@@ -120,6 +120,7 @@ def visualization_tool(
     y_col: Optional[str] = None,
     hue_col: Optional[str] = None,
     title: Optional[str] = None,
+    summary: Optional[str] = None,
 ) -> str:
     """
     Generates a chart and returns it as a base64-encoded PNG data-URI.
@@ -130,9 +131,10 @@ def visualization_tool(
         y_col:      Column name for the y-axis (required for bar/line/scatter/box).
         hue_col:    Optional column name to colour-encode categories.
         title:      Optional chart title; auto-generated if omitted.
+        summary:    Optional concise summary of what the chart shows.
 
     Returns:
-        Markdown image string embedding the chart as base64 PNG.
+        JSON string containing the chart as base64 PNG, title, and summary.
 
     Important: Only use column names that appear in the dataset schema.
     """
@@ -171,7 +173,15 @@ def visualization_tool(
         fig.savefig(buf, format="png", dpi=120)
         plt.close(fig)
         encoded = base64.b64encode(buf.getvalue()).decode()
-        return f"![{ax.get_title()}](data:image/png;base64,{encoded})"
+        
+        result_json = {
+            "type": "visualization",
+            "image": encoded,
+            "chart_type": chart_type,
+            "title": ax.get_title(),
+            "summary": summary or f"Generated {chart_type} chart for {y_col or x_col}."
+        }
+        return json.dumps(result_json)
 
     except Exception as exc:
         plt.close("all")

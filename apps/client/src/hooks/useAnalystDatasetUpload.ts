@@ -4,16 +4,20 @@ import { useDispatch } from "react-redux";
 import api from "../services/api";
 import { addDataset } from "../redux/features/analystSlice";
 import type { AppDispatch } from "../redux/store";
-import type { MediaPayload } from "../components/MessageInput";
+import type { MediaPayload } from "../types";
 
 /**
  * Encapsulates the dataset upload flow: POST /api/upload -> Redux dispatches + toast.
  */
-export const useAnalystDatasetUpload = (getEnsuredThread: () => string) => {
+export const useAnalystDatasetUpload = () => {
   const dispatch = useDispatch<AppDispatch>();
 
   const handleProcessMedia = useCallback(
-    async (payload: MediaPayload) => {
+    async (
+      payload: MediaPayload,
+      getEnsuredThread: () => string,
+      loadThreads?: () => Promise<void>
+    ) => {
       if (!payload.file) return;
 
       const threadId = getEnsuredThread();
@@ -37,13 +41,28 @@ export const useAnalystDatasetUpload = (getEnsuredThread: () => string) => {
               uploadedAt: new Date().toISOString(),
             }),
           );
+          
+          try {
+            await api.post("/api/ai/nameThreadFromUpload", {
+              thread_id: threadId,
+              media: "dataset",
+              filename: payload.file.name,
+            });
+          } catch (err) {
+            console.error("Failed to name thread from dataset upload", err);
+          }
+          
           toast.success(`${payload.file.name} uploaded successfully`);
+          
+          if (loadThreads) {
+            await loadThreads();
+          }
         }
       } catch {
         toast.error("Upload failed");
       }
     },
-    [dispatch, getEnsuredThread],
+    [dispatch],
   );
 
   return { handleProcessMedia };

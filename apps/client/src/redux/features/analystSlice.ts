@@ -1,23 +1,14 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-
-export interface AnalystMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-  pending?: boolean;
-  mediaAttachment?: { type: string; name: string };
-}
-
-export interface UploadedDataset {
-  id: string;
-  name: string;
-  thread_id: string;
-  uploadedAt: string;
-}
+import type {
+  AnalystMessage,
+  AnalystDataset,
+  AnalystVisualization,
+} from "../../types";
 
 interface AnalystState {
   messages: AnalystMessage[];
   isSending: boolean;
-  uploadedDatasets: UploadedDataset[];
+  uploadedDatasets: AnalystDataset[];
   activeDatasetId: string | null;
 }
 
@@ -33,13 +24,21 @@ const analystSlice = createSlice({
   initialState,
   reducers: {
     addUserMessage(state, action: PayloadAction<string>) {
-      state.messages.push({ role: "user", content: action.payload });
-      state.messages.push({ role: "assistant", content: "", pending: true });
+      state.messages.push({ id: crypto.randomUUID(), role: "user", content: action.payload });
+      state.messages.push({ id: crypto.randomUUID(), role: "assistant", content: "", pending: true });
     },
     appendChunk(state, action: PayloadAction<string>) {
       const last = state.messages[state.messages.length - 1];
       if (last && last.role === "assistant") {
         last.content += action.payload;
+        last.pending = false;
+      }
+    },
+    appendVisualization(state, action: PayloadAction<AnalystVisualization>) {
+      const last = state.messages[state.messages.length - 1];
+      if (last && last.role === "assistant") {
+        if (!last.visualizations) last.visualizations = [];
+        last.visualizations.push(action.payload);
         last.pending = false;
       }
     },
@@ -57,7 +56,7 @@ const analystSlice = createSlice({
     setIsSending(state, action: PayloadAction<boolean>) {
       state.isSending = action.payload;
     },
-    addDataset(state, action: PayloadAction<UploadedDataset>) {
+    addDataset(state, action: PayloadAction<AnalystDataset>) {
       state.uploadedDatasets.unshift(action.payload);
       state.activeDatasetId = action.payload.id;
     },
@@ -78,6 +77,7 @@ const analystSlice = createSlice({
 export const {
   addUserMessage,
   appendChunk,
+  appendVisualization,
   finalizeResponse,
   setError,
   setIsSending,

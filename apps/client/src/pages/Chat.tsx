@@ -5,7 +5,7 @@ import { useDispatch } from "react-redux";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatHeader from "../components/ChatHeader";
 import ChatMessagePanel from "../components/ChatMessagePanel";
-import type { MediaPayload, UploadedItem } from "../components/MessageInput";
+import type { MediaPayload } from "../types";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
 import type { AppDispatch } from "../redux/store";
@@ -25,9 +25,9 @@ const MEDIA_LABELS: Record<string, string> = {
 
 const Chat = () => {
   const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
-  const activeThreadIdRef = useRef<string | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null); //
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
+  // const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
@@ -36,16 +36,8 @@ const Chat = () => {
     _setActiveThreadId(id);
   }, []);
 
-  const {
-    threads,
-    isLoadingThreads,
-    draftThreadIds,
-    loadThreads,
-    handleNewChat,
-    removeDraftThread,
-    setThreads,
-    setDraftThreadIds,
-  } = useThreads();
+  const { threads, isLoadingThreads, loadThreads, handleNewChat, setThreads } =
+    useThreads();
 
   const {
     messages,
@@ -76,20 +68,18 @@ const Chat = () => {
   useEffect(() => {
     if (!activeThreadId) return;
 
-    // ✅ KEY FIX: Don't wipe messages while a send is in progress
     if (isSending) return;
 
-    const isDraft = draftThreadIds.has(activeThreadId);
     const id = window.setTimeout(
-      () => void loadConversation(activeThreadId, isDraft),
+      () => void loadConversation(activeThreadId, false),
       0,
     );
     return () => window.clearTimeout(id);
-  }, [activeThreadId, draftThreadIds, loadConversation, isSending]);
+  }, [activeThreadId, loadConversation, isSending]);
 
-  useEffect(() => {
-    setUploadedItems([]);
-  }, [activeThreadId]);
+  // useEffect(() => {
+  //   setUploadedItems([]);
+  // }, [activeThreadId]);
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
@@ -101,11 +91,9 @@ const Chat = () => {
 
     const threadId = createThreadId();
     activeThreadIdRef.current = threadId;
-    setDraftThreadIds((prev) => new Set(prev).add(threadId));
-    setThreads((prev) => [{ thread_id: threadId, title: "New Chat" }, ...prev]);
     _setActiveThreadId(threadId);
     return threadId;
-  }, [setThreads, setDraftThreadIds]);
+  }, []);
 
   const handleSendMessage = async (
     content: string,
@@ -115,7 +103,6 @@ const Chat = () => {
       content,
       activeThreadId,
       getEnsuredThread,
-      removeDraftThread,
       setThreads,
       isApproval,
       false,
@@ -126,7 +113,6 @@ const Chat = () => {
     await handleProcessMedia(
       payload,
       getEnsuredThread,
-      removeDraftThread,
       setActiveStatus,
       loadThreads,
     );
@@ -137,10 +123,10 @@ const Chat = () => {
       MEDIA_LABELS[payload.media] ??
       payload.media;
 
-    setUploadedItems((prev) => [
-      ...prev,
-      { type: payload.media, name, icon: "" },
-    ]);
+    // setUploadedItems((prev) => [
+    //   ...prev,
+    //   { type: payload.media, name, icon: "" },
+    // ]);
 
     if (payload.media === "video" || payload.media === "audio") {
       setMessages((prev) => [
@@ -155,9 +141,9 @@ const Chat = () => {
     }
   };
 
-  const handleRemoveUpload = (index: number) => {
-    setUploadedItems((prev) => prev.filter((_, i) => i !== index));
-  };
+  // const handleRemoveUpload = (index: number) => {
+  //   setUploadedItems((prev) => prev.filter((_, i) => i !== index));
+  // };
 
   const handleLogout = async () => {
     try {
@@ -206,10 +192,10 @@ const Chat = () => {
           messages={messages}
           disabled={inputDisabled}
           isSending={isSending}
-          uploadedItems={uploadedItems}
+          // uploadedItems={uploadedItems}
           onSend={handleSendMessage}
           onProcessMedia={handleProcessMediaClick}
-          onRemoveUpload={handleRemoveUpload}
+          // onRemoveUpload={handleRemoveUpload}
         />
       </div>
     </div>

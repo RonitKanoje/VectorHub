@@ -1,4 +1,4 @@
-import { BarChart2, CircleCheck, Clock3, Moon, Sun } from "lucide-react";
+import { CircleCheck, Clock3, Moon, Sun } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleTheme } from "../redux/features/themeSlice";
 import type { RootState } from "../redux/store";
@@ -9,21 +9,29 @@ interface ChatHeaderProps {
   isAnalystMode?: boolean;
 }
 
-const ChatHeader = ({ title, status, isAnalystMode = false }: ChatHeaderProps) => {
+const ChatHeader = ({
+  title,
+  status,
+  isAnalystMode = false,
+}: ChatHeaderProps) => {
   const isReady = status === "completed";
   const dispatch = useDispatch();
   const mode = useSelector((state: RootState) => state.theme.mode);
 
   return (
     <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-6 backdrop-blur shrink-0">
+
+      
       <div className="flex items-center gap-3">
-        {isAnalystMode && (
+        {/* {isAnalystMode && (
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400">
             <BarChart2 className="h-4 w-4" />
           </div>
-        )}
+        )} */}
         <div>
-          <h2 className="text-sm font-semibold text-slate-950 dark:text-white">{title}</h2>
+          <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
+            {title}
+          </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {isAnalystMode ? "Analyst Agent" : "ThreadCore assistant"}
           </p>
@@ -47,7 +55,11 @@ const ChatHeader = ({ title, status, isAnalystMode = false }: ChatHeaderProps) =
           className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
           aria-label="Toggle theme"
         >
-          {mode === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          {mode === "light" ? (
+            <Moon className="h-5 w-5" />
+          ) : (
+            <Sun className="h-5 w-5" />
+          )}
         </button>
       </div>
     </div>

@@ -33,6 +33,7 @@ async def process_media(
         payload.thread_id,
         current_user,
         payload.language,
+        payload.document_name,
     )
     return {"status": "Processing started"}
 

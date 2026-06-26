@@ -1,18 +1,4 @@
-interface ApiErrorDetail {
-  loc?: Array<string | number>;
-  msg?: string;
-}
-
-interface ApiErrorData {
-  message?: string;
-  detail?: string | ApiErrorDetail[];
-}
-
-interface ApiErrorLike {
-  response?: {
-    data?: ApiErrorData;
-  };
-}
+import type { ApiErrorLike } from "../types";
 
 export function getApiErrorMessage(error: unknown, fallback: string) {
   const data = (error as ApiErrorLike).response?.data;

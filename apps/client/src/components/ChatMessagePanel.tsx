@@ -8,17 +8,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import MessageInput from "./MessageInput";
-import type { MediaPayload, UploadedItem } from "./MessageInput";
-
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  pending?: boolean;
-  requires_approval?: boolean;
-  tool?: string;
-  mediaAttachment?: { type: string; name: string };
-}
+import type { MediaPayload, UploadedItem } from "../types";
+import type { ChatMessage } from "../types";
 
 interface ChatMessagePanelProps {
   messages: ChatMessage[];
@@ -36,10 +27,10 @@ const ChatMessagePanel = ({
   disabled = false,
   isSending = false,
   isAnalystMode = false,
-  uploadedItems = [],
+  // uploadedItems = [],
   onSend,
   onProcessMedia,
-  onRemoveUpload,
+  // onRemoveUpload,
 }: ChatMessagePanelProps) => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -81,11 +72,11 @@ const ChatMessagePanel = ({
         <div className="mx-auto flex max-w-4xl flex-col gap-4">
           {messages.map((message, idx) => {
             const isUser = message.role === "user";
-            const messageKey = message.id ?? `msg-${idx}`; // ✅ safe fallback
+            const messageKey = message.id ?? `msg-${idx}`; // safe fallback
 
             return (
               <div
-                key={messageKey} // ✅ stable key with fallback
+                key={messageKey} // stable key with fallback
                 className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
               >
                 {!isUser && (
@@ -107,7 +98,7 @@ const ChatMessagePanel = ({
                 <div className="flex flex-col gap-1 max-w-[78%]">
                   {message.mediaAttachment && (
                     <div
-                      key={`media-${messageKey}`} // ✅ key on media pill
+                      key={`media-${messageKey}`} // key on media pill
                       className="flex items-center gap-1.5 self-end rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300"
                     >
                       {message.mediaAttachment.type === "video" ? (
@@ -136,14 +127,14 @@ const ChatMessagePanel = ({
                       idx === messages.length - 1 && (
                         <div className="mt-3 flex gap-2">
                           <button
-                            key={`approve-yes-${messageKey}`} // ✅ key on button
+                            key={`approve-yes-${messageKey}`} //key on button
                             onClick={() => onSend("yes", true)}
                             className="px-3 py-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition text-xs font-medium"
                           >
                             ✓ Yes, go ahead
                           </button>
                           <button
-                            key={`approve-no-${messageKey}`} // ✅ key on button
+                            key={`approve-no-${messageKey}`} //key on button
                             onClick={() => onSend("no", true)}
                             className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition text-xs font-medium"
                           >
@@ -170,10 +161,10 @@ const ChatMessagePanel = ({
         disabled={disabled}
         isSending={isSending}
         isAnalystMode={isAnalystMode}
-        uploadedItems={uploadedItems}
+        // uploadedItems={uploadedItems}
         onSend={onSend}
         onProcessMedia={onProcessMedia}
-        onRemoveUpload={onRemoveUpload}
+        // onRemoveUpload={onRemoveUpload}
       />
     </div>
   );

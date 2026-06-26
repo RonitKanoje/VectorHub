@@ -1,8 +1,8 @@
 import { TableProperties } from "lucide-react";
-import type { AnalystUploadedDataset } from "../types/analyst";
+import type { AnalystDataset } from "../types";
 
 interface AnalystDatasetPillsProps {
-  datasets: AnalystUploadedDataset[];
+  datasets: AnalystDataset[];
 }
 
 const AnalystDatasetPills = ({ datasets }: AnalystDatasetPillsProps) => {

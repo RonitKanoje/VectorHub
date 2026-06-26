@@ -8,6 +8,7 @@ import {
   getThreadStatus,
   chat,
   nameChat,
+  nameThreadFromUpload,
   analystChat,
 } from "../controllers/ai.controller.js";
 
@@ -22,6 +23,7 @@ router.get("/ingestion_status/:threadId", getIngestionStatus);
 router.get("/thread_status/:threadId", getThreadStatus);
 router.post("/chat", chat);
 router.post("/nameChat", nameChat);
+router.post("/nameThreadFromUpload", nameThreadFromUpload);
 router.post("/analyst_chat", analystChat);
 
 export default router;

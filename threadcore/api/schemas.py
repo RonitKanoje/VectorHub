@@ -8,6 +8,7 @@ class ProcessMediaRequest(BaseModel):
     media: Literal["youtube", "audio", "video", "text", "document"]
     thread_id: str = Field(..., description="Thread ID for chat context")
     language: str | None = Field(default=None, description="Language of the media content")
+    document_name: str | None = Field(default=None, description="Original name of the document")
 
 
 class ChatMessageRequest(BaseModel):
@@ -38,6 +39,13 @@ class ChatMessageRequest(BaseModel):
 class ChatNameRequest(BaseModel):
     message: str = Field(..., description="Content of the user message")
     thread_id: str = Field(..., description="Thread ID for chat context")
+
+
+class ThreadNameFromUploadRequest(BaseModel):
+    thread_id: str = Field(..., description="Thread ID for chat context")
+    media: str = Field(..., description="Media type uploaded")
+    filename: str = Field(..., description="Filename of the uploaded media")
+
 
 
 class ThreadResponse(BaseModel):

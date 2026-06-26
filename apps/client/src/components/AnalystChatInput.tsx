@@ -1,6 +1,6 @@
 import { ArrowUp, Mic, MicOff } from "lucide-react";
 import AnalystPlusButton from "./AnalystPlusButton";
-import type { MediaPayload } from "./MessageInput";
+import type { MediaPayload } from "../types";
 
 interface AnalystChatInputProps {
   value: string;

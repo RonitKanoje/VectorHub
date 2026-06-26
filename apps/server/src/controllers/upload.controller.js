@@ -43,6 +43,7 @@ export async function uploadMedia(req, res) {
       thread_id,
       language: language || null,
       path: filePath,
+      document_name: file ? file.originalname : (req.body.document_name || null),
     };
 
     const endpoint = media === "dataset" ? "/process_dataset" : "/process_media";

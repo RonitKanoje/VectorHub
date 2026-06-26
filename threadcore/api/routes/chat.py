@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage
 from sqlalchemy.orm import Session
 
 from threadcore.api.dependencies import ensure_thread_access, get_chatbot, get_current_user
-from threadcore.api.schemas import ChatMessageRequest, ChatNameRequest
+from threadcore.api.schemas import ChatMessageRequest, ChatNameRequest, ThreadNameFromUploadRequest
 from threadcore.services.rag.thread_service import (
     save_or_update_thread,
     get_user_thread,
@@ -203,3 +203,29 @@ async def name_chat(
         return {"title": title}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="name_chat_failed") from exc
+
+
+@router.post("/nameThreadFromUpload")
+async def name_thread_from_upload(
+    payload: ThreadNameFromUploadRequest,
+    current_user: str = Depends(_resolve_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        thread = get_user_thread(db, payload.thread_id, current_user)
+        
+        # If thread already exists and is not named "New Chat", keep existing name
+        if thread and thread.title and thread.title != "New Chat":
+            return {"title": thread.title}
+
+        import os
+        # Clean up the filename: remove extension, replace hyphens/underscores, title case
+        name_without_ext = os.path.splitext(payload.filename)[0]
+        clean_name = name_without_ext.replace("_", " ").replace("-", " ").strip().title()
+        
+        title = clean_name if clean_name else f"{payload.media.capitalize()} Upload"
+
+        save_or_update_thread(db, payload.thread_id, title, current_user, mode=thread.mode if thread else "chat")
+        return {"title": title}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="name_thread_from_upload_failed") from exc

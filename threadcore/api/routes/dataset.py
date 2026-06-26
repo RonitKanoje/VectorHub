@@ -21,6 +21,7 @@ class ProcessDatasetRequest(BaseModel):
     thread_id: str
     path: str
     language: str | None = None
+    document_name: str | None = None
 
 
 @router.post("/process_dataset")
@@ -65,7 +66,8 @@ async def process_dataset(
             db=db,
             file_path=request.path,
             thread_id=request.thread_id,
-            user_id=x_user_id
+            user_id=x_user_id,
+            document_name=request.document_name
         )
     except Exception as e:
         raise HTTPException(
@@ -160,17 +162,51 @@ async def load_analyst_conv(
     messages = state.values["messages"]
     conversation = []
 
+    import json
+
+    # Each user turn produces a block of messages in this order:
+    #   HumanMessage
+    #   AIMessage (with tool_calls)  ← intermediate ReAct steps
+    #   ToolMessage (tool result)    ← may contain visualization JSON
+    #   ...                          ← more tool call/result pairs
+    #   AIMessage (no tool_calls)    ← final text answer
+    #
+    # We want to produce:
+    #   {"role": "user",      "content": "..."}
+    #   {"role": "assistant", "content": "...", "visualizations": [...]}
+
+    current_assistant: dict | None = None
+
+    def _flush(block: dict | None):
+        """Add the current assistant block to conversation if it has content."""
+        if block and (block["content"] or block["visualizations"]):
+            conversation.append(block)
+
     for message in messages:
         if message.type == "human":
-            conversation.append({
-                "role": "user",
-                "content": message.content
-            })
+            _flush(current_assistant)
+            current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            conversation.append({"role": "user", "content": message.content})
 
         elif message.type == "ai":
-            conversation.append({
-                "role": "assistant",
-                "content": message.content
-            })
+            if current_assistant is None:
+                current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            # Only the final AIMessage (no tool_calls) carries the human-readable answer
+            if message.content and not message.tool_calls:
+                current_assistant["content"] += message.content
+
+        elif message.type == "tool":
+            if current_assistant is None:
+                current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            tool_name = getattr(message, "name", "") or ""
+            if tool_name == "visualization_tool":
+                try:
+                    vis_data = json.loads(message.content)
+                    if isinstance(vis_data, dict) and vis_data.get("type") == "visualization":
+                        current_assistant["visualizations"].append(vis_data)
+                except Exception:
+                    pass
+
+    _flush(current_assistant)
 
     return {"messages": conversation}
