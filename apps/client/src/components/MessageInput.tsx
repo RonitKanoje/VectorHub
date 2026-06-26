@@ -1,6 +1,7 @@
 import { ArrowUp, BarChart2, Mic, MicOff } from "lucide-react";
 import { useState, useRef } from "react";
 import PlusButton from "./PlusButton";
+import AnalystPlusButton from "./AnalystPlusButton";
 import api from "../services/api";
 import type { MediaPayload, UploadedItem } from "../types";
 
@@ -12,29 +13,42 @@ interface MessageInputProps {
   onSend: (content: string) => Promise<void>;
   onProcessMedia: (payload: MediaPayload) => Promise<void>;
   onRemoveUpload?: (index: number) => void;
+  // Analyst mode external state overrides
+  value?: string;
+  onChange?: (val: string) => void;
+  isRecordingOverride?: boolean;
+  isTranscribingOverride?: boolean;
+  onToggleRecording?: () => void;
 }
-
-// const MEDIA_ICONS: Record<string, string> = {
-//   youtube: "📺",
-//   audio: "🎵",
-//   video: "🎥",
-//   document: "📄",
-//   text: "📝",
-//   dataset: "📊",
-// };
 
 const MessageInput = ({
   disabled = false,
   isSending = false,
   isAnalystMode = false,
-  // uploadedItems = [],
   onSend,
   onProcessMedia,
-  // onRemoveUpload,
+  value: externalValue,
+  onChange: externalOnChange,
+  isRecordingOverride,
+  isTranscribingOverride,
+  onToggleRecording,
 }: MessageInputProps) => {
-  const [value, setValue] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [internalValue, setInternalValue] = useState("");
+  const [internalIsRecording, setInternalIsRecording] = useState(false);
+  const [internalIsTranscribing, setInternalIsTranscribing] = useState(false);
+
+  const value = externalValue !== undefined ? externalValue : internalValue;
+  const setValue =
+    externalOnChange !== undefined ? externalOnChange : setInternalValue;
+  const isRecording =
+    isRecordingOverride !== undefined
+      ? isRecordingOverride
+      : internalIsRecording;
+  const isTranscribing =
+    isTranscribingOverride !== undefined
+      ? isTranscribingOverride
+      : internalIsTranscribing;
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -55,7 +69,7 @@ const MessageInput = ({
       };
 
       mediaRecorder.onstop = async () => {
-        setIsTranscribing(true);
+        setInternalIsTranscribing(true);
         try {
           const audioBlob = new Blob(audioChunksRef.current, {
             type: "audio/webm",
@@ -77,14 +91,14 @@ const MessageInput = ({
         } catch (err) {
           console.error("Transcription failed", err);
         } finally {
-          setIsTranscribing(false);
+          setInternalIsTranscribing(false);
         }
         // Clean up stream tracks
         stream.getTracks().forEach((t) => t.stop());
       };
 
       mediaRecorder.start();
-      setIsRecording(true);
+      setInternalIsRecording(true);
     } catch (err) {
       console.error("Microphone access error", err);
     }
@@ -97,7 +111,7 @@ const MessageInput = ({
     ) {
       mediaRecorderRef.current.stop();
     }
-    setIsRecording(false);
+    setInternalIsRecording(false);
   };
 
   const handleSubmit = async () => {
@@ -133,14 +147,14 @@ const MessageInput = ({
       )} */}
 
       {/* Analyst mode banner */}
-      {isAnalystMode && (
+      {/* {isAnalystMode && (
         <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 text-xs text-violet-700 dark:text-violet-300">
           <BarChart2 className="h-3.5 w-3.5" />
           <span>
             Analyst Mode active — upload a CSV/Excel dataset to query it
           </span>
         </div>
-      )}
+      )} */}
 
       <div className="relative mx-auto w-full max-w-4xl">
         <input
@@ -163,10 +177,23 @@ const MessageInput = ({
             }
           }}
         />
-        <PlusButton disabled={isSending} onProcessMedia={onProcessMedia} />
+        {isAnalystMode ? (
+          <AnalystPlusButton
+            disabled={isSending}
+            onProcessMedia={onProcessMedia}
+          />
+        ) : (
+          <PlusButton disabled={isSending} onProcessMedia={onProcessMedia} />
+        )}
         <button
           type="button"
-          onClick={isRecording ? stopRecording : startRecording}
+          onClick={
+            onToggleRecording
+              ? onToggleRecording
+              : isRecording
+                ? stopRecording
+                : startRecording
+          }
           disabled={disabled || isSending || isTranscribing}
           className={`absolute right-14 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition ${
             isRecording

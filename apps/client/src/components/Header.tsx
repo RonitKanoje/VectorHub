@@ -1,40 +1,31 @@
-import { CircleCheck, Clock3, Moon, Sun } from "lucide-react";
+import { CircleCheck, Clock3, Moon, Sun, BarChart2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleTheme } from "../redux/features/themeSlice";
 import type { RootState } from "../redux/store";
 
-interface ChatHeaderProps {
+interface HeaderProps {
   title: string;
   status?: string | null;
   isAnalystMode?: boolean;
 }
 
-const ChatHeader = ({
-  title,
-  status,
-  isAnalystMode = false,
-}: ChatHeaderProps) => {
+const Header = ({ title, status, isAnalystMode = false }: HeaderProps) => {
   const isReady = status === "completed";
   const dispatch = useDispatch();
   const mode = useSelector((state: RootState) => state.theme.mode);
 
   return (
     <div className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 px-6 backdrop-blur shrink-0">
-
-      
       <div className="flex items-center gap-3">
-        {/* {isAnalystMode && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400">
+        {isAnalystMode && (
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
             <BarChart2 className="h-4 w-4" />
           </div>
-        )} */}
+        )}
         <div>
           <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
             {title}
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isAnalystMode ? "Analyst Agent" : "ThreadCore assistant"}
-          </p>
         </div>
       </div>
 
@@ -66,4 +57,4 @@ const ChatHeader = ({
   );
 };
 
-export default ChatHeader;
+export default Header;

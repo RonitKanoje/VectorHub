@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import ChatSidebar from "../components/ChatSidebar";
-import ChatHeader from "../components/ChatHeader";
-import ChatMessagePanel from "../components/ChatMessagePanel";
+import Header from "../components/Header";
+import MessageList from "../components/MessageList";
+import MessageInput from "../components/MessageInput";
 import type { MediaPayload } from "../types";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
@@ -184,18 +185,19 @@ const Chat = () => {
       />
 
       <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
-        <ChatHeader
+        <Header
           title={activeTitle}
           status={isProcessing ? (activeStatus ?? "processing") : activeStatus}
         />
-        <ChatMessagePanel
+        <MessageList
           messages={messages}
+          onSend={handleSendMessage}
+        />
+        <MessageInput
           disabled={inputDisabled}
           isSending={isSending}
-          // uploadedItems={uploadedItems}
           onSend={handleSendMessage}
           onProcessMedia={handleProcessMediaClick}
-          // onRemoveUpload={handleRemoveUpload}
         />
       </div>
     </div>

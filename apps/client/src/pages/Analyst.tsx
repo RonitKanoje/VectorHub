@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
 import ChatSidebar from "../components/ChatSidebar";
-import AnalystHeader from "../components/AnalystHeader";
-import AnalystMessageList from "../components/AnalystMessageList";
+import Header from "../components/Header";
+import MessageList from "../components/MessageList";
 import AnalystDatasetPills from "../components/AnalystDatasetPills";
-import AnalystChatInput from "../components/AnalystChatInput";
+import MessageInput from "../components/MessageInput";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
 import { toggleTheme } from "../redux/features/themeSlice";
@@ -151,19 +151,20 @@ const Analyst = () => {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <AnalystHeader mode={mode} onToggleTheme={() => dispatch(toggleTheme())} />
+        <Header title="Analyst Mode" isAnalystMode={true} />
 
-        <AnalystMessageList messages={messages} />
+        <MessageList messages={messages} isAnalystMode={true} />
 
         <AnalystDatasetPills datasets={uploadedDatasets} />
 
-        <AnalystChatInput
+        <MessageInput
+          isAnalystMode={true}
           value={value}
           onChange={setValue}
-          onSend={() => submitMessage(value)}
+          onSend={async () => submitMessage(value)}
           isSending={isSending}
-          isRecording={isRecording}
-          isTranscribing={isTranscribing}
+          isRecordingOverride={isRecording}
+          isTranscribingOverride={isTranscribing}
           onToggleRecording={toggleRecording}
           onProcessMedia={(payload) => handleProcessMedia(payload, getEnsuredThread, () => loadThreads("analyst"))}
         />
