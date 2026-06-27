@@ -14,6 +14,7 @@ interface UseConversationReturn {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   setActiveStatus: React.Dispatch<React.SetStateAction<string | null>>;
   loadConversation: (threadId: string, refresh?: boolean) => Promise<void>;
+  abortStatusPolling: () => void;
   handleSend: (
     content: string,
     activeThreadId: string | null,
@@ -48,6 +49,11 @@ export function useConversation(): UseConversationReturn {
     },
     [],
   );
+
+  const abortStatusPolling = useCallback(() => {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+  }, []);
 
   const loadConversation = useCallback(
     async (threadId: string) => {
@@ -99,7 +105,7 @@ export function useConversation(): UseConversationReturn {
   const handleSend = useCallback(
     async (
       content: string,
-      activeThreadId: string | null,
+      _activeThreadId: string | null,
       ensureActiveThread: () => string,
       setThreads: React.Dispatch<React.SetStateAction<Thread[]>>,
       isApproval: boolean = false,
@@ -137,6 +143,10 @@ export function useConversation(): UseConversationReturn {
           : "/api/ai/chat";
         const baseURL = api.defaults.baseURL || "http://localhost:3000";
 
+        // Note: We intentionally use native fetch() instead of Axios here.
+        // Axios traditionally downloads the whole response and its support for Server-Sent Events (SSE)
+        // streams in the browser is difficult to handle reliably without losing chunks.
+        // fetch() provides native stream readers which are essential for this streaming feature.
         const response = await fetch(`${baseURL}${endpoint}`, {
           method: "POST",
           headers: {
@@ -218,11 +228,11 @@ export function useConversation(): UseConversationReturn {
                   prev.map((msg) =>
                     msg.id === assistantId
                       ? {
-                          ...msg,
-                          requires_approval: true,
-                          tool: data.tool,
-                          pending: false,
-                        }
+                        ...msg,
+                        requires_approval: true,
+                        tool: data.tool,
+                        pending: false,
+                      }
                       : msg,
                   ),
                 );
@@ -258,6 +268,7 @@ export function useConversation(): UseConversationReturn {
     setMessages: updateMessages,
     setActiveStatus,
     loadConversation,
+    abortStatusPolling,
     handleSend,
   };
 }

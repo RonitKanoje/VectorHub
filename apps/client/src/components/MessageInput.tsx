@@ -1,54 +1,41 @@
 import { ArrowUp, BarChart2, Mic, MicOff } from "lucide-react";
 import { useState, useRef } from "react";
 import PlusButton from "./PlusButton";
-import AnalystPlusButton from "./AnalystPlusButton";
 import api from "../services/api";
-import type { MediaPayload, UploadedItem } from "../types";
+import type { MediaPayload } from "../types";
 
 interface MessageInputProps {
   disabled?: boolean;
   isSending?: boolean;
   isAnalystMode?: boolean;
-  uploadedItems?: UploadedItem[];
+  embedded?: boolean;
   onSend: (content: string) => Promise<void>;
   onProcessMedia: (payload: MediaPayload) => Promise<void>;
   onRemoveUpload?: (index: number) => void;
-  // Analyst mode external state overrides
-  value?: string;
-  onChange?: (val: string) => void;
-  isRecordingOverride?: boolean;
-  isTranscribingOverride?: boolean;
-  onToggleRecording?: () => void;
 }
+
+// const MEDIA_ICONS: Record<string, string> = {
+//   youtube: "📺",
+//   audio: "🎵",
+//   video: "🎥",
+//   document: "📄",
+//   text: "📝",
+//   dataset: "📊",
+// };
 
 const MessageInput = ({
   disabled = false,
   isSending = false,
   isAnalystMode = false,
+  embedded = false,
+  // uploadedItems = [],
   onSend,
   onProcessMedia,
-  value: externalValue,
-  onChange: externalOnChange,
-  isRecordingOverride,
-  isTranscribingOverride,
-  onToggleRecording,
+  // onRemoveUpload,
 }: MessageInputProps) => {
-  const [internalValue, setInternalValue] = useState("");
-  const [internalIsRecording, setInternalIsRecording] = useState(false);
-  const [internalIsTranscribing, setInternalIsTranscribing] = useState(false);
-
-  const value = externalValue !== undefined ? externalValue : internalValue;
-  const setValue =
-    externalOnChange !== undefined ? externalOnChange : setInternalValue;
-  const isRecording =
-    isRecordingOverride !== undefined
-      ? isRecordingOverride
-      : internalIsRecording;
-  const isTranscribing =
-    isTranscribingOverride !== undefined
-      ? isTranscribingOverride
-      : internalIsTranscribing;
-
+  const [value, setValue] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -69,7 +56,7 @@ const MessageInput = ({
       };
 
       mediaRecorder.onstop = async () => {
-        setInternalIsTranscribing(true);
+        setIsTranscribing(true);
         try {
           const audioBlob = new Blob(audioChunksRef.current, {
             type: "audio/webm",
@@ -91,14 +78,14 @@ const MessageInput = ({
         } catch (err) {
           console.error("Transcription failed", err);
         } finally {
-          setInternalIsTranscribing(false);
+          setIsTranscribing(false);
         }
         // Clean up stream tracks
         stream.getTracks().forEach((t) => t.stop());
       };
 
       mediaRecorder.start();
-      setInternalIsRecording(true);
+      setIsRecording(true);
     } catch (err) {
       console.error("Microphone access error", err);
     }
@@ -111,7 +98,7 @@ const MessageInput = ({
     ) {
       mediaRecorderRef.current.stop();
     }
-    setInternalIsRecording(false);
+    setIsRecording(false);
   };
 
   const handleSubmit = async () => {
@@ -122,7 +109,13 @@ const MessageInput = ({
   };
 
   return (
-    <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4">
+    <div
+      className={
+        embedded
+          ? "w-full"
+          : "shrink-0 bg-white dark:bg-slate-950 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4"
+      }
+    >
       {/* Upload pills */}
       {/* {uploadedItems.length > 0 && (
         <div className="mx-auto mb-2 flex max-w-4xl flex-wrap gap-1.5">
@@ -147,14 +140,14 @@ const MessageInput = ({
       )} */}
 
       {/* Analyst mode banner */}
-      {/* {isAnalystMode && (
+      {isAnalystMode && (
         <div className="mx-auto mb-2 flex max-w-4xl items-center gap-2 rounded-xl bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 px-3 py-1.5 text-xs text-violet-700 dark:text-violet-300">
           <BarChart2 className="h-3.5 w-3.5" />
           <span>
             Analyst Mode active — upload a CSV/Excel dataset to query it
           </span>
         </div>
-      )} */}
+      )}
 
       <div className="relative mx-auto w-full max-w-4xl">
         <input
@@ -177,31 +170,17 @@ const MessageInput = ({
             }
           }}
         />
-        {isAnalystMode ? (
-          <AnalystPlusButton
-            disabled={isSending}
-            onProcessMedia={onProcessMedia}
-          />
-        ) : (
-          <PlusButton disabled={isSending} onProcessMedia={onProcessMedia} />
-        )}
+        <PlusButton disabled={isSending} onProcessMedia={onProcessMedia} />
         <button
           type="button"
-          onClick={
-            onToggleRecording
-              ? onToggleRecording
-              : isRecording
-                ? stopRecording
-                : startRecording
-          }
+          onClick={isRecording ? stopRecording : startRecording}
           disabled={disabled || isSending || isTranscribing}
-          className={`absolute right-14 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition ${
-            isRecording
+          className={`absolute right-14 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition ${isRecording
               ? "bg-red-500 text-white animate-pulse"
               : isTranscribing
                 ? "bg-amber-500 text-white animate-pulse"
                 : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
-          }`}
+            }`}
           aria-label={isRecording ? "Stop recording" : "Start recording"}
         >
           {isRecording ? (

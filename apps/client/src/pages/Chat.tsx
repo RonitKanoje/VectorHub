@@ -6,6 +6,7 @@ import ChatSidebar from "../components/ChatSidebar";
 import Header from "../components/Header";
 import MessageList from "../components/MessageList";
 import MessageInput from "../components/MessageInput";
+import EmptyState from "../components/EmptyState";
 import type { MediaPayload } from "../types";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
@@ -27,6 +28,7 @@ const MEDIA_LABELS: Record<string, string> = {
 const Chat = () => {
   const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
   const activeThreadIdRef = useRef<string | null>(null); //
+  const loadedThreadIdRef = useRef<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   // const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
   const dispatch = useDispatch<AppDispatch>();
@@ -48,10 +50,12 @@ const Chat = () => {
     setMessages,
     setActiveStatus,
     loadConversation,
+    abortStatusPolling,
     handleSend,
   } = useConversation();
 
-  const { isProcessing, handleProcessMedia } = useMediaProcessing();
+  const { isProcessing, resetProcessing, handleProcessMedia } =
+    useMediaProcessing();
 
   const activeTitle = useMemo(
     () =>
@@ -67,16 +71,31 @@ const Chat = () => {
   }, [loadThreads]);
 
   useEffect(() => {
-    if (!activeThreadId) return;
+    if (!activeThreadId) {
+      loadedThreadIdRef.current = null;
+      return;
+    }
 
-    if (isSending) return;
+    if (activeThreadId === loadedThreadIdRef.current) return;
+
+    const isPersistedThread = threads.some(
+      (thread) => thread.thread_id === activeThreadId,
+    );
+
+    if (!isPersistedThread) {
+      if (isLoadingThreads) return;
+      loadedThreadIdRef.current = activeThreadId;
+      return;
+    }
+
+    loadedThreadIdRef.current = activeThreadId;
 
     const id = window.setTimeout(
       () => void loadConversation(activeThreadId, false),
       0,
     );
     return () => window.clearTimeout(id);
-  }, [activeThreadId, loadConversation, isSending]);
+  }, [activeThreadId, loadConversation, threads, isLoadingThreads]);
 
   // useEffect(() => {
   //   setUploadedItems([]);
@@ -84,8 +103,15 @@ const Chat = () => {
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
-  const handleNewChatClick = () =>
+  const handleNewChatClick = () => {
+    abortStatusPolling();
+    resetProcessing();
+    loadedThreadIdRef.current = null;
     handleNewChat(setActiveThreadId, setActiveStatus, setMessages);
+  };
+
+  const showCenteredEmptyLayout =
+    messages.length === 0 && !activeStatus && !isProcessing;
 
   const getEnsuredThread = useCallback(() => {
     if (activeThreadIdRef.current) return activeThreadIdRef.current;
@@ -189,16 +215,29 @@ const Chat = () => {
           title={activeTitle}
           status={isProcessing ? (activeStatus ?? "processing") : activeStatus}
         />
-        <MessageList
-          messages={messages}
-          onSend={handleSendMessage}
-        />
-        <MessageInput
-          disabled={inputDisabled}
-          isSending={isSending}
-          onSend={handleSendMessage}
-          onProcessMedia={handleProcessMediaClick}
-        />
+        <div
+          className={`flex flex-1 flex-col overflow-hidden${
+            showCenteredEmptyLayout
+              ? " items-center justify-center gap-8 px-4 "
+              : ""
+          }`}
+        >
+          {showCenteredEmptyLayout && <EmptyState />}
+          {!showCenteredEmptyLayout && (
+            <MessageList messages={messages} onSend={handleSendMessage} />
+          )}
+          <div
+            className={`w-full${showCenteredEmptyLayout ? " max-w-4xl" : " shrink-0"}`}
+          >
+            <MessageInput
+              embedded={showCenteredEmptyLayout}
+              disabled={inputDisabled}
+              isSending={isSending}
+              onSend={handleSendMessage}
+              onProcessMedia={handleProcessMediaClick}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

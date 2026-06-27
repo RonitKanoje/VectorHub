@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { MediaPayload } from "./MessageInput";
+import type { MediaPayload } from "../types";
 
 interface DocumentModalProps {
   isSubmitting: boolean;
@@ -65,14 +65,5 @@ const DocumentModal = ({ isSubmitting, onClose, onSubmit }: DocumentModalProps) 
     </div>
   );
 };
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
 
 export default DocumentModal;

@@ -7,7 +7,7 @@ import VideoModal from "./VideoModal";
 import AudioModal from "./AudioModal";
 import TextModal from "./TextModal";
 import DocumentModal from "./DocumentModal";
-import type { MediaPayload } from "./MessageInput";
+import type { MediaPayload } from "../types";
 
 type ActiveModal = "youtube" | "video" | "audio" | "text" | "document" | null;
 const modalBackdropClass =

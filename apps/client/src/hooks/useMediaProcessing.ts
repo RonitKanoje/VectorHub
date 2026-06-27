@@ -7,6 +7,7 @@ import type { MediaPayload } from "../types";
 
 interface UseMediaProcessingReturn {
   isProcessing: boolean;
+  resetProcessing: () => void;
   handleProcessMedia: (
     payload: MediaPayload,
     ensureActiveThread: () => string,
@@ -18,6 +19,12 @@ interface UseMediaProcessingReturn {
 export function useMediaProcessing(): UseMediaProcessingReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const pollAbortRef = useRef<AbortController | null>(null);
+
+  const resetProcessing = () => {
+    pollAbortRef.current?.abort();
+    pollAbortRef.current = null;
+    setIsProcessing(false);
+  };
 
   const handleProcessMedia = async (
     payload: MediaPayload,
@@ -84,5 +91,5 @@ export function useMediaProcessing(): UseMediaProcessingReturn {
     }
   };
 
-  return { isProcessing, handleProcessMedia };
+  return { isProcessing, resetProcessing, handleProcessMedia };
 }

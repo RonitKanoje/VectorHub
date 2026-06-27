@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Plus, TableProperties } from "lucide-react";
-import type { MediaPayload } from "./MessageInput";
+import type { MediaPayload } from "../types";
 
 interface AnalystPlusButtonProps {
   disabled?: boolean;

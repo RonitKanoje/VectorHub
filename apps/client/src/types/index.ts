@@ -3,7 +3,7 @@
 
 export type { ChatRole, MediaAttachment, ChatMessage } from "./chat";
 export type { Thread, ThreadMode } from "./thread";
-export type { MediaType, MediaPayload, UploadedItem } from "./media";
+export type { MediaType, MediaPayload } from "./media";
 export type {
   AnalystVisualization,
   AnalystMessage,

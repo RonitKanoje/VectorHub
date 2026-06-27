@@ -7,26 +7,27 @@ import Header from "../components/Header";
 import MessageList from "../components/MessageList";
 import AnalystDatasetPills from "../components/AnalystDatasetPills";
 import MessageInput from "../components/MessageInput";
+import EmptyState from "../components/EmptyState";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
-import { toggleTheme } from "../redux/features/themeSlice";
-import { useAnalystAudioRecorder } from "../hooks/useAnalystAudioRecorder";
+// import { useAnalystAudioRecorder } from "../hooks/useAnalystAudioRecorder";
 import { useAnalystDatasetUpload } from "../hooks/useAnalystDatasetUpload";
 import { useAnalystChat } from "../hooks/useAnalystChat";
 import { useThreads } from "../hooks/useThreads";
 import { useAnalystConversation } from "../hooks/useAnalystConversation";
 import type { RootState, AppDispatch } from "../redux/store";
+import type { MediaPayload } from "../types";
 import { createThreadId } from "../utils/createThreadId";
-import { setMessages } from "../redux/features/analystSlice";
+import { resetForNewChat } from "../redux/features/analystSlice";
 
 const Analyst = () => {
   const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
+  const loadedThreadIdRef = useRef<string | null>(null);
   // Tracks whether isSending was previously true so we can distinguish
   // "stream just ended" (isSending: true→false) from "thread switched".
   const wasStreamingRef = useRef(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [value, setValue] = useState("");
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -34,7 +35,6 @@ const Analyst = () => {
   const messages = useSelector((s: RootState) => s.analyst.messages);
   const isSending = useSelector((s: RootState) => s.analyst.isSending);
   const uploadedDatasets = useSelector((s: RootState) => s.analyst.uploadedDatasets);
-  const mode = useSelector((s: RootState) => s.theme.mode);
   const token = useSelector((s: RootState) => s.auth.accessToken);
 
   const setActiveThreadId = useCallback((id: string) => {
@@ -50,7 +50,7 @@ const Analyst = () => {
     setThreads,
   } = useThreads();
 
-  const { isLoadingConversation, loadConversation } = useAnalystConversation();
+  const { loadConversation } = useAnalystConversation();
 
   useEffect(() => {
     const id = window.setTimeout(() => void loadThreads("analyst"), 0);
@@ -66,27 +66,67 @@ const Analyst = () => {
   }, [isSending]);
 
   useEffect(() => {
-    if (!activeThreadId) return;
+    if (!activeThreadId) {
+      loadedThreadIdRef.current = null;
+      return;
+    }
+
+    if (activeThreadId === loadedThreadIdRef.current) return;
+
+    const isPersistedThread = threads.some(
+      (thread) => thread.thread_id === activeThreadId,
+    );
+
+    if (!isPersistedThread) {
+      if (isLoadingThreads) return;
+      loadedThreadIdRef.current = activeThreadId;
+      return;
+    }
 
     // Skip reload immediately after streaming finishes — the streamed Redux
     // state (including visualizations) is the source of truth at this point.
     // The LangGraph checkpointer may not have persisted the state yet either.
     if (wasStreamingRef.current && !isSending) {
       wasStreamingRef.current = false; // reset for next message
+      loadedThreadIdRef.current = activeThreadId;
       return;
     }
+
+    loadedThreadIdRef.current = activeThreadId;
 
     const id = window.setTimeout(
       () => void loadConversation(activeThreadId),
       0,
     );
     return () => window.clearTimeout(id);
-  }, [activeThreadId, loadConversation, isSending]);
+  }, [activeThreadId, loadConversation, isSending, threads, isLoadingThreads]);
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
-  const handleNewChatClick = () =>
-    handleNewChat(setActiveThreadId, () => { }, () => dispatch(setMessages([])));
+  const handleNewChatClick = () => {
+    dispatch(resetForNewChat());
+    loadedThreadIdRef.current = null;
+    handleNewChat(setActiveThreadId, () => {}, () => {});
+  };
+
+  const showCenteredEmptyLayout =
+    messages.length === 0 && uploadedDatasets.length === 0;
+
+  const handleAnalystProcessMedia = async (payload: MediaPayload) => {
+    const name = payload.file?.name ?? payload.path ?? "Dataset";
+    const content = `Uploaded dataset: ${name}`;
+
+    await handleSend(
+      content,
+      getEnsuredThread(),
+      setThreads
+    );
+    await handleProcessMedia(
+      payload,
+      getEnsuredThread,
+      () => loadThreads("analyst"),
+    );
+  };
 
   const getEnsuredThread = useCallback(() => {
     if (activeThreadIdRef.current) return activeThreadIdRef.current;
@@ -101,12 +141,7 @@ const Analyst = () => {
 
   const { handleProcessMedia } = useAnalystDatasetUpload();
 
-  const { isRecording, isTranscribing, toggleRecording } = useAnalystAudioRecorder({
-    onTranscript: (text) => setValue((p) => (p + " " + text).trim()),
-  });
-
   const submitMessage = async (content: string) => {
-    setValue("");
     const threadId = getEnsuredThread();
 
     await handleSend(content, threadId, setThreads);
@@ -137,7 +172,7 @@ const Analyst = () => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-950 text-white">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-950 dark:text-white">
       <ChatSidebar
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={handleToggleSidebar}
@@ -150,24 +185,35 @@ const Analyst = () => {
         onLogoutAll={() => void handleLogoutAll()}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
         <Header title="Analyst Mode" isAnalystMode={true} />
 
-        <MessageList messages={messages} isAnalystMode={true} />
-
-        <AnalystDatasetPills datasets={uploadedDatasets} />
-
-        <MessageInput
-          isAnalystMode={true}
-          value={value}
-          onChange={setValue}
-          onSend={async () => submitMessage(value)}
-          isSending={isSending}
-          isRecordingOverride={isRecording}
-          isTranscribingOverride={isTranscribing}
-          onToggleRecording={toggleRecording}
-          onProcessMedia={(payload) => handleProcessMedia(payload, getEnsuredThread, () => loadThreads("analyst"))}
-        />
+        <div
+          className={`flex flex-1 flex-col overflow-hidden${
+            showCenteredEmptyLayout
+              ? " items-center justify-center gap-8 px-4"
+              : ""
+          }`}
+        >
+          {showCenteredEmptyLayout && <EmptyState isAnalystMode={true} />}
+          {!showCenteredEmptyLayout && (
+            <>
+              <MessageList messages={messages} isAnalystMode={true} />
+              <AnalystDatasetPills datasets={uploadedDatasets} />
+            </>
+          )}
+          <div
+            className={`w-full${showCenteredEmptyLayout ? " max-w-4xl" : " shrink-0"}`}
+          >
+            <MessageInput
+              embedded={showCenteredEmptyLayout}
+              isAnalystMode={true}
+              onSend={submitMessage}
+              isSending={isSending}
+              onProcessMedia={handleAnalystProcessMedia}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

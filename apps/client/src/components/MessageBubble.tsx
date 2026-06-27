@@ -1,5 +1,14 @@
-import { Bot, User, BarChart2, FileVideo, FileAudio, FileSpreadsheet } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import {
+  Check,
+  X,
+  FileText,
+  Video,
+  Mic,
+  FileBarChart,
+  Link,
+  Play,
+} from "lucide-react";
 import type { ChatMessage, AnalystMessage } from "../types";
 
 interface MessageBubbleProps {
@@ -11,158 +20,121 @@ interface MessageBubbleProps {
 
 const MessageBubble = ({
   message,
-  isAnalystMode = false,
+  isAnalystMode,
   onSend,
-  isLast = false,
+  isLast,
 }: MessageBubbleProps) => {
   const isUser = message.role === "user";
-  const isSystem = message.role === "system";
+  const isPending = "pending" in message && message.pending;
+  const isApproval =
+    "requires_approval" in message && message.requires_approval;
 
-  // System messages (Analyst mode dataset uploads)
-  if (isSystem) {
-    return (
-      <div className="flex justify-center">
-        <div className="flex items-center gap-2 rounded-xl border border-violet-800/50 bg-violet-900/20 px-3 py-1.5 text-xs text-violet-300">
-          <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
-          <span>{message.mediaAttachment?.name ?? message.content}</span>
-          <span className="text-violet-500">— uploaded ✓</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Type casting for analyst specific fields
-  const analystMessage = message as AnalystMessage;
-  const hasVisualizations =
-    analystMessage.visualizations && analystMessage.visualizations.length > 0;
+  const getMediaIcon = (type: string) => {
+    switch (type) {
+      case "video":
+        return <Video className="h-4 w-4" />;
+      case "audio":
+        return <Mic className="h-4 w-4" />;
+      case "document":
+        return <FileText className="h-4 w-4" />;
+      case "dataset":
+        return <FileBarChart className="h-4 w-4" />;
+      case "youtube":
+        return <Play className="h-4 w-4" />;
+      default:
+        return <Link className="h-4 w-4" />;
+    }
+  };
 
   return (
-    <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
-      {!isUser && (
-        <div
-          className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white ${
-            isAnalystMode
-              ? "bg-violet-700"
-              : "bg-slate-950 dark:bg-slate-700"
-          }`}
-        >
-          {isAnalystMode ? (
-            <BarChart2 className="h-4 w-4" />
-          ) : (
-            <Bot className="h-4 w-4" />
-          )}
-        </div>
-      )}
-
-      <div className={`flex flex-col gap-3 max-w-[78%]`}>
-        {/* Media Attachments for User (Regular Chat) */}
-        {!isAnalystMode && message.mediaAttachment && (
-          <div className="flex items-center gap-1.5 self-end rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300">
-            {message.mediaAttachment.type === "video" ? (
-              <FileVideo className="h-3.5 w-3.5" />
-            ) : (
-              <FileAudio className="h-3.5 w-3.5" />
-            )}
-            <span className="max-w-[160px] truncate">
-              {message.mediaAttachment.name}
-            </span>
-          </div>
-        )}
-
-        {/* Text content bubble */}
-        {(message.content || message.pending) && (
-          <div
-            className={`rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
-              isUser
-                ? isAnalystMode
-                  ? "bg-violet-700 text-white"
-                  : "bg-cyan-600 dark:bg-cyan-700 text-white"
-                : isAnalystMode
-                  ? "border border-slate-700 bg-slate-800 text-slate-100"
-                  : "border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-            } ${message.pending && !hasVisualizations ? "animate-pulse opacity-70" : ""}`}
-          >
-            {isUser || !isAnalystMode ? (
-              <span className="whitespace-pre-wrap">
-                {message.content || (message.pending ? (isAnalystMode ? "Analysing…" : "Thinking…") : "")}
-              </span>
-            ) : (
-              <div className="prose prose-sm prose-invert max-w-none">
-                <ReactMarkdown>{message.content || (message.pending ? "Analysing…" : "")}</ReactMarkdown>
-              </div>
-            )}
-
-            {/* Approval Buttons (Regular Chat) */}
-            {!isAnalystMode && (message as ChatMessage).requires_approval && isLast && onSend && (
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => onSend("yes", true)}
-                  className="px-3 py-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition text-xs font-medium"
-                >
-                  ✓ Yes, go ahead
-                </button>
-                <button
-                  onClick={() => onSend("no", true)}
-                  className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition text-xs font-medium"
-                >
-                  ✕ No, skip it
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Visualization cards (Analyst Mode) */}
-        {isAnalystMode && hasVisualizations &&
-          analystMessage.visualizations!.map((vis, idx) => (
-            <div
-              key={idx}
-              className="rounded-2xl border border-violet-500/30 bg-slate-800/80 shadow-lg overflow-hidden"
-            >
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-700/60 bg-slate-900/60">
-                <BarChart2 className="h-4 w-4 text-violet-400 shrink-0" />
-                <span className="text-sm font-semibold text-violet-200 truncate">
-                  {vis.title}
-                </span>
-                <span className="ml-auto text-xs text-slate-500 uppercase tracking-wide font-mono shrink-0">
-                  {vis.chart_type}
-                </span>
-              </div>
-              <div className="bg-white/5 p-2">
-                <img
-                  src={`data:image/png;base64,${vis.image}`}
-                  alt={vis.title}
-                  className="w-full rounded-lg object-contain"
-                  style={{ maxHeight: "420px" }}
-                />
-              </div>
-              {vis.summary && (
-                <div className="px-4 py-3 border-t border-slate-700/60">
-                  <p className="text-xs text-slate-400 leading-5">{vis.summary}</p>
-                </div>
-              )}
+    <div
+      className={`flex w-full ${isUser ? "justify-end" : "justify-start"} animate-in fade-in slide-in-from-bottom-2`}
+    >
+      <div
+        className={`max-w-[85%] rounded-2xl px-5 py-4 ${isUser ? "bg-slate-900 text-white dark:bg-slate-700 dark:text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 shadow-sm"}`}
+      >
+        {!isUser && isAnalystMode && (
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-violet-600 dark:text-violet-400">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30">
+              ✨
             </div>
-          ))}
+            Data Analyst
+          </div>
+        )}
 
-        {/* Loading skeleton for visualization when pending */}
-        {isAnalystMode && message.pending && !hasVisualizations && !message.content && (
-          <div className="rounded-2xl border border-slate-700 bg-slate-800/80 px-4 py-3 animate-pulse">
-            <span className="text-sm text-slate-500">Analysing…</span>
+        {!isUser && !isAnalystMode && (
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+            Assistant
+          </div>
+        )}
+
+        <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+          {message.content ? (
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          ) : isPending ? (
+            <div className="flex space-x-1 items-center h-4">
+              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
+            </div>
+          ) : null}
+        </div>
+
+        {"mediaAttachment" in message && message.mediaAttachment && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 text-sm">
+            {getMediaIcon(message.mediaAttachment.type)}
+            <span className="truncate">{message.mediaAttachment.name}</span>
+          </div>
+        )}
+
+        {isAnalystMode &&
+          "visualizations" in message &&
+          message.visualizations &&
+          Object.keys(message.visualizations).length > 0 && (
+            <div className="mt-4 flex flex-col gap-4">
+              {Object.entries(message.visualizations).map(([name, base64]) => (
+                <div
+                  key={name}
+                  className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                >
+                  <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {name}
+                  </div>
+                  <img
+                    src={`data:image/png;base64,${base64}`}
+                    alt={name}
+                    className="w-full h-auto object-contain p-2"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+        {isApproval && onSend && isLast && (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-900 dark:bg-cyan-900/20">
+            <div className="flex-1 text-sm text-cyan-800 dark:text-cyan-200">
+              Tool needs approval:{" "}
+              <span className="font-semibold">
+                {("tool" in message && message.tool) || "Unknown Tool"}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onSend("yes", true)}
+                className="flex items-center gap-1 rounded bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-700"
+              >
+                <Check className="h-3 w-3" /> Allow
+              </button>
+              <button
+                onClick={() => onSend("no", true)}
+                className="flex items-center gap-1 rounded bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              >
+                <X className="h-3 w-3" /> Deny
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      {isUser && (
-        <div
-          className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-            isAnalystMode
-              ? "bg-violet-900/60 text-violet-300"
-              : "bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-300"
-          }`}
-        >
-          <User className="h-4 w-4" />
-        </div>
-      )}
     </div>
   );
 };

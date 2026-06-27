@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import Options from "./Options";
-import type { MediaPayload } from "./MessageInput";
+import type { MediaPayload } from "../types";
 
 interface PlusButtonProps {
   disabled?: boolean;
