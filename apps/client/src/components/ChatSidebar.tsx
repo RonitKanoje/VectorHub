@@ -7,8 +7,9 @@ import {
   PanelLeftOpen,
   Plus,
   Settings,
+  Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { Thread } from "../types";
 
@@ -36,9 +37,20 @@ const ChatSidebar = ({
   onLogoutAll,
 }: ChatSidebarProps) => {
   const [showSettings, setShowSettings] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const isOnAnalyst = location.pathname === "/analyst";
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (!settingsRef.current?.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showSettings]);
 
   if (isSidebarOpen) {
     return (
@@ -54,11 +66,8 @@ const ChatSidebar = ({
 
         <div className="mb-5 pr-10">
           <h1 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">
-            VectorHub
+            Vectorr
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Your intelligent assistant
-          </p>
         </div>
 
         <button
@@ -75,12 +84,18 @@ const ChatSidebar = ({
           onClick={() => navigate(isOnAnalyst ? "/chat" : "/analyst")}
           className={`mb-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition active:scale-[0.98] ${
             isOnAnalyst
-              ? "border-violet-500 bg-violet-600 text-white hover:bg-violet-500"
+              ? "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               : "border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/10"
           }`}
         >
-          <BarChart2 className="h-4 w-4" />
-          {isOnAnalyst ? "← Back to Chat" : "Analyst Mode"}
+          {isOnAnalyst ? (
+            "← Back to Chat"
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <BarChart2 className="h-4 w-4" />
+              Analyst Mode
+            </div>
+          )}
         </button>
 
         <h2 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -92,8 +107,9 @@ const ChatSidebar = ({
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {isLoadingThreads && (
-            <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-              Loading chats...
+            <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-slate-500 dark:text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Loading chats...</span>
             </div>
           )}
 
@@ -118,13 +134,15 @@ const ChatSidebar = ({
                 onClick={() => onSelectThread(thread.thread_id)}
               >
                 <MessageSquare className="mt-0.5 h-4 w-4 shrink-0" />
-                <span className="line-clamp-2">{thread.title || "New Chat"}</span>
+                <span className="line-clamp-2">
+                  {thread.title || "New Chat"}
+                </span>
               </button>
             );
           })}
         </div>
 
-        <div className="relative mt-4 border-t border-slate-200 pt-4 dark:border-white/10">
+        <div className="relative mt-4" ref={settingsRef}>
           {showSettings && (
             <div className="absolute bottom-16 left-0 right-0 z-10 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-white/10 dark:bg-slate-900">
               <button

@@ -170,7 +170,7 @@ const MessageInput = ({
             }
           }}
         />
-        <PlusButton disabled={isSending} onProcessMedia={onProcessMedia} />
+        <PlusButton disabled={isSending} isAnalystMode={isAnalystMode} onProcessMedia={onProcessMedia} />
         <button
           type="button"
           onClick={isRecording ? stopRecording : startRecording}

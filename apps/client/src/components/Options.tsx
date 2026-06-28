@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AudioLines, FileText, SquarePlay, Video, File } from "lucide-react";
+import { AudioLines, FileText, SquarePlay, Video, File, TableProperties } from "lucide-react";
 import OptionsButton from "./OptionsButton";
 import YTModal from "./YTModal";
 import VideoModal from "./VideoModal";
@@ -15,13 +15,22 @@ const modalBackdropClass =
 const modalShellClass = "w-full max-w-lg";
 
 interface OptionsProps {
+  isAnalystMode?: boolean;
   onClose: () => void;
   onProcessMedia: (payload: MediaPayload) => Promise<void>;
 }
 
-const Options = ({ onClose, onProcessMedia }: OptionsProps) => {
+const Options = ({ isAnalystMode = false, onClose, onProcessMedia }: OptionsProps) => {
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleDatasetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await handleSubmit({ media: "dataset", file });
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   const handleSubmit = async (payload: MediaPayload) => {
     setIsSubmitting(true);
@@ -93,35 +102,58 @@ const Options = ({ onClose, onProcessMedia }: OptionsProps) => {
   return (
     <>
       <div className="flex flex-col gap-1">
-        <OptionsButton
-          icon={<SquarePlay className="h-4 w-4" />}
-          text="YouTube transcript"
-          onClick={() => setActiveModal("youtube")}
-        />
+        {isAnalystMode ? (
+          <>
+            <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Upload Dataset
+            </p>
+            <OptionsButton
+              icon={<TableProperties className="h-4 w-4" />}
+              text="CSV / Excel"
+              subtitle=".csv, .xlsx, .xls"
+              onClick={() => fileRef.current?.click()}
+            />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={handleDatasetUpload}
+            />
+          </>
+        ) : (
+          <>
+            <OptionsButton
+              icon={<SquarePlay className="h-4 w-4" />}
+              text="YouTube transcript"
+              onClick={() => setActiveModal("youtube")}
+            />
 
-        <OptionsButton
-          icon={<Video className="h-4 w-4" />}
-          text="Video file"
-          onClick={() => setActiveModal("video")}
-        />
+            <OptionsButton
+              icon={<Video className="h-4 w-4" />}
+              text="Video file"
+              onClick={() => setActiveModal("video")}
+            />
 
-        <OptionsButton
-          icon={<AudioLines className="h-4 w-4" />}
-          text="Audio file"
-          onClick={() => setActiveModal("audio")}
-        />
+            <OptionsButton
+              icon={<AudioLines className="h-4 w-4" />}
+              text="Audio file"
+              onClick={() => setActiveModal("audio")}
+            />
 
-        <OptionsButton
-          icon={<FileText className="h-4 w-4" />}
-          text="Text content"
-          onClick={() => setActiveModal("text")}
-        />
+            <OptionsButton
+              icon={<FileText className="h-4 w-4" />}
+              text="Text content"
+              onClick={() => setActiveModal("text")}
+            />
 
-        <OptionsButton
-          icon={<File className="h-4 w-4" />}
-          text="Document (PDF)"
-          onClick={() => setActiveModal("document")}
-        />
+            <OptionsButton
+              icon={<File className="h-4 w-4" />}
+              text="Document (PDF)"
+              onClick={() => setActiveModal("document")}
+            />
+          </>
+        )}
       </div>
 
       {modal}
