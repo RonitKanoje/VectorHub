@@ -139,6 +139,17 @@ export async function refreshToken(req, res) {
       });
     }
 
+    // Fetch the latest user details
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Generate new access token
     const accessToken = await generateToken(
       {
         userId: user._id,
@@ -149,10 +160,15 @@ export async function refreshToken(req, res) {
       "15m",
     );
 
+    // Generate new refresh token
     const newRefreshToken = await generateToken(
-      { userId: decoded.userId, sessionId: session._id },
+      {
+        userId: user._id,
+        sessionId: session._id,
+      },
       "7d",
     );
+
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
     session.refreshTokenHash = newRefreshTokenHash;
     await session.save();
@@ -161,7 +177,7 @@ export async function refreshToken(req, res) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     return res.status(200).json({
@@ -170,13 +186,13 @@ export async function refreshToken(req, res) {
     });
   } catch (error) {
     console.error(error);
+
     return res.status(401).json({
       success: false,
       message: "Invalid refresh token",
     });
   }
 }
-
 export async function logout(req, res) {
   try {
     const { refreshToken } = req.cookies;
