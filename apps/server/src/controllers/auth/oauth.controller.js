@@ -126,7 +126,15 @@ export const getGoogleLoginCallBack = async (req, res) => {
         "7d",
       );
 
-      const accessToken = await generateToken({ userId: user._id }, "15m");
+      const accessToken = await generateToken(
+        {
+          userId: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+        },
+        "15m",
+      );
 
       const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
       session.refreshTokenHash = refreshTokenHash;
@@ -200,8 +208,15 @@ export const getGoogleLoginCallBack = async (req, res) => {
         "7d",
       );
 
-      const accessToken = await generateToken({ userId: user._id }, "15m");
-
+      const accessToken = await generateToken(
+        {
+          userId: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+        },
+        "15m",
+      );
       const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
       session.refreshTokenHash = refreshTokenHash;
       await session.save();

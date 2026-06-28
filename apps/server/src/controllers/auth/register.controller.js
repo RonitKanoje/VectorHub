@@ -30,7 +30,7 @@ export async function register(req, res) {
       });
     }
 
-    // Advanced validations (including confirmPassword mismatch and username spacing) 
+    // Advanced validations (including confirmPassword mismatch and username spacing)
     // have been moved to the client side.
 
     const isAlreadyUsername = await User.findOne({ username });
@@ -89,7 +89,8 @@ export async function register(req, res) {
 
     return res.status(201).json({
       success: true,
-      message: "User registered successfully. OTP sent to email for verification.",
+      message:
+        "User registered successfully. OTP sent to email for verification.",
       userId: user._id,
     });
   } catch (error) {
@@ -163,10 +164,18 @@ export async function verifyEmail(req, res) {
 
     const refreshToken = await generateToken(
       { userId: user._id, sessionId: session._id },
-      "7d"
+      "7d",
     );
 
-    const accessToken = await generateToken({ userId: user._id }, "15m");
+    const accessToken = await generateToken(
+      {
+        userId: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+      },
+      "15m",
+    );
 
     session.refreshTokenHash = await bcrypt.hash(refreshToken, 10);
     await session.save();

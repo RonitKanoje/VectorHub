@@ -36,7 +36,7 @@ export async function login(req, res) {
     if (!user.isVerified) {
       return res.status(400).json({
         success: false,
-        message: "Email not verified", 
+        message: "Email not verified",
       });
     }
 
@@ -58,12 +58,23 @@ export async function login(req, res) {
 
     const refreshToken = await generateToken(
       { userId: user._id, sessionId: session._id },
-      "7d"
+      "7d",
     );
 
+    console.log({
+      userId: user._id,
+      username: user.username,
+      email: user.email,
+    });
+
     const accessToken = await generateToken(
-      { userId: user._id },
-      "15m"
+      {
+        userId: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+      },
+      "15m",
     );
 
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
@@ -116,7 +127,10 @@ export async function refreshToken(req, res) {
       });
     }
 
-    const isValid = await bcrypt.compare(refreshToken, session.refreshTokenHash);
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
 
     if (!isValid) {
       return res.status(401).json({
@@ -125,11 +139,19 @@ export async function refreshToken(req, res) {
       });
     }
 
-    const accessToken = await generateToken({ userId: decoded.userId }, "15m");
+    const accessToken = await generateToken(
+      {
+        userId: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+      },
+      "15m",
+    );
 
     const newRefreshToken = await generateToken(
       { userId: decoded.userId, sessionId: session._id },
-      "7d"
+      "7d",
     );
     const newRefreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
     session.refreshTokenHash = newRefreshTokenHash;
@@ -181,7 +203,10 @@ export async function logout(req, res) {
       });
     }
 
-    const isValid = await bcrypt.compare(refreshToken, session.refreshTokenHash);
+    const isValid = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
 
     if (!isValid) {
       return res.status(401).json({
@@ -222,7 +247,7 @@ export async function logoutAll(req, res) {
 
     await Session.updateMany(
       { user: decoded.userId, revoked: false },
-      { revoked: true }
+      { revoked: true },
     );
 
     res.clearCookie("refreshToken");

@@ -1,40 +1,25 @@
 import { CircleCheck, Clock3, Moon, Sun } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleTheme } from "../redux/features/themeSlice";
-import type { RootState } from "../redux/store";
+import type { RootState, AppDispatch } from "../redux/store";
 
 interface ChatHeaderProps {
   title: string;
   status?: string | null;
-  isAnalystMode?: boolean;
 }
 
-const ChatHeader = ({
-  title,
-  status,
-  isAnalystMode = false,
-}: ChatHeaderProps) => {
+const ChatHeader = ({ title, status }: ChatHeaderProps) => {
   const isReady = status === "completed";
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const mode = useSelector((state: RootState) => state.theme.mode);
 
   return (
     <div className="flex h-16 items-center justify-between bg-white dark:bg-slate-950 px-6 shrink-0">
-
-
       <div className="flex items-center gap-3">
-        {/* {isAnalystMode && (
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400">
-            <BarChart2 className="h-4 w-4" />
-          </div>
-        )} */}
         <div>
           <h2 className="text-sm font-semibold text-slate-950 dark:text-white">
             {title}
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isAnalystMode ? "Analyst Agent" : "ThreadCore assistant"}
-          </p>
         </div>
       </div>
 
