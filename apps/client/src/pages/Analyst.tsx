@@ -10,7 +10,6 @@ import MessageInput from "../components/MessageInput";
 import EmptyState from "../components/EmptyState";
 import api from "../services/api";
 import { logout as clearAuth } from "../redux/features/authSlice";
-// import { useAnalystAudioRecorder } from "../hooks/useAnalystAudioRecorder";
 import { useAnalystDatasetUpload } from "../hooks/useAnalystDatasetUpload";
 import { useAnalystChat } from "../hooks/useAnalystChat";
 import { useThreads } from "../hooks/useThreads";
@@ -24,8 +23,6 @@ const Analyst = () => {
   const [activeThreadId, _setActiveThreadId] = useState<string | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
   const loadedThreadIdRef = useRef<string | null>(null);
-  // Tracks whether isSending was previously true so we can distinguish
-  // "stream just ended" (isSending: true→false) from "thread switched".
   const wasStreamingRef = useRef(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -34,31 +31,57 @@ const Analyst = () => {
 
   const messages = useSelector((s: RootState) => s.analyst.messages);
   const isSending = useSelector((s: RootState) => s.analyst.isSending);
-  const uploadedDatasets = useSelector((s: RootState) => s.analyst.uploadedDatasets);
+  const uploadedDatasets = useSelector(
+    (s: RootState) => s.analyst.uploadedDatasets,
+  );
   const token = useSelector((s: RootState) => s.auth.accessToken);
 
   const setActiveThreadId = useCallback((id: string) => {
+    console.log("setActiveThreadId called", {
+      previousActiveThreadId: activeThreadIdRef.current,
+      newId: id,
+    });
+    console.trace();
+    console.log("Setting active thread:", id);
     activeThreadIdRef.current = id;
     _setActiveThreadId(id);
   }, []);
 
-  const {
-    threads,
-    isLoadingThreads,
-    loadThreads,
-    handleNewChat,
-    setThreads,
-  } = useThreads();
+  const { threads, isLoadingThreads, loadThreads, handleNewChat, setThreads } =
+    useThreads();
+
+  useEffect(() => {
+    console.log("✅ Analyst mounted");
+
+    return () => {
+      console.log("❌ Analyst unmounted");
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log({
+      activeThreadId,
+      messages: messages.length,
+      uploadedDatasets: uploadedDatasets.length,
+    });
+  }, [activeThreadId, messages, uploadedDatasets]);
 
   const { loadConversation } = useAnalystConversation();
 
   useEffect(() => {
-    const id = window.setTimeout(() => void loadThreads("analyst"), 0);
+    const id = window.setTimeout(() => {
+      console.log("Loading analyst thread list");
+      void loadThreads("analyst").then(() => {
+        console.log("Finished loading analyst thread list");
+      });
+    }, 0);
     return () => window.clearTimeout(id);
   }, [loadThreads]);
 
-  // Keep wasStreamingRef in sync with isSending so we can detect the
-  // moment streaming finishes inside the conversation-reload effect.
+  useEffect(() => {
+    dispatch(resetForNewChat());
+  }, []);
+
   useEffect(() => {
     if (isSending) {
       wasStreamingRef.current = true;
@@ -66,27 +89,43 @@ const Analyst = () => {
   }, [isSending]);
 
   useEffect(() => {
+    console.log("Thread loading effect started", {
+      activeThreadId,
+      loadedThreadIdRefCurrent: loadedThreadIdRef.current,
+      isSending,
+      isLoadingThreads,
+      threadCount: threads.length,
+    });
+
     if (!activeThreadId) {
+      console.log("Branch: no active thread");
       loadedThreadIdRef.current = null;
       return;
     }
 
-    if (activeThreadId === loadedThreadIdRef.current) return;
+    if (activeThreadId === loadedThreadIdRef.current) {
+      console.log("Branch: already loaded");
+      return;
+    }
 
     const isPersistedThread = threads.some(
       (thread) => thread.thread_id === activeThreadId,
     );
 
     if (!isPersistedThread) {
-      if (isLoadingThreads) return;
+      if (isLoadingThreads) {
+        console.log("Branch: waiting for threads");
+        return;
+      }
+      console.log("Branch: new temporary thread");
       loadedThreadIdRef.current = activeThreadId;
       return;
     }
 
-    // Skip reload immediately after streaming finishes — the streamed Redux
-    // state (including visualizations) is the source of truth at this point.
-    // The LangGraph checkpointer may not have persisted the state yet either.
+    console.log("Branch: persisted thread found");
+
     if (wasStreamingRef.current && !isSending) {
+      console.log("Branch: skipping because stream just finished");
       wasStreamingRef.current = false; // reset for next message
       loadedThreadIdRef.current = activeThreadId;
       return;
@@ -94,46 +133,67 @@ const Analyst = () => {
 
     loadedThreadIdRef.current = activeThreadId;
 
-    const id = window.setTimeout(
-      () => void loadConversation(activeThreadId),
-      0,
-    );
+    console.log("Branch: about to call loadConversation()");
+    const id = window.setTimeout(() => {
+      console.log("Loading conversation:", activeThreadId);
+      void loadConversation(activeThreadId);
+    }, 0);
+    console.log("Conversation scheduled");
     return () => window.clearTimeout(id);
   }, [activeThreadId, loadConversation, isSending, threads, isLoadingThreads]);
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const handleNewChatClick = () => {
+    console.log("New Chat clicked");
+    console.log("activeThreadId before reset:", activeThreadId);
     dispatch(resetForNewChat());
     loadedThreadIdRef.current = null;
-    handleNewChat(setActiveThreadId, () => {}, () => {});
+    console.log("activeThreadId after reset:", activeThreadId);
+    handleNewChat(
+      setActiveThreadId,
+      () => {},
+      () => {},
+    );
   };
 
   const showCenteredEmptyLayout =
     messages.length === 0 && uploadedDatasets.length === 0;
 
   const handleAnalystProcessMedia = async (payload: MediaPayload) => {
-    const name = payload.file?.name ?? payload.path ?? "Dataset";
-    const content = `Uploaded dataset: ${name}`;
+    console.log("handleAnalystProcessMedia payload:", payload);
+    // const name = payload.file?.name ?? payload.path ?? "Dataset";
+    // const content = `Uploaded dataset: ${name}`;
 
-    await handleSend(
-      content,
-      getEnsuredThread(),
-      setThreads
-    );
+    // await handleSend(
+    //   content,
+    //   getEnsuredThread(),
+    //   setThreads
+    // );
     await handleProcessMedia(
       payload,
-      getEnsuredThread,
+      () => {
+        const threadId = getEnsuredThread();
+        console.log("handleAnalystProcessMedia ensured thread:", threadId);
+        return threadId;
+      },
       () => loadThreads("analyst"),
     );
   };
 
   const getEnsuredThread = useCallback(() => {
-    if (activeThreadIdRef.current) return activeThreadIdRef.current;
+    if (activeThreadIdRef.current) {
+      console.log(
+        "getEnsuredThread: reused existing thread",
+        activeThreadIdRef.current,
+      );
+      return activeThreadIdRef.current;
+    }
 
     const threadId = createThreadId();
     activeThreadIdRef.current = threadId;
     _setActiveThreadId(threadId);
+    console.log("getEnsuredThread: created new thread", threadId);
     return threadId;
   }, []);
 
@@ -143,6 +203,7 @@ const Analyst = () => {
 
   const submitMessage = async (content: string) => {
     const threadId = getEnsuredThread();
+    console.log("submitMessage", { content, threadId });
 
     await handleSend(content, threadId, setThreads);
   };

@@ -107,13 +107,14 @@ async def stream_analyst_response(
     # This gives us: row/col counts, missing-value summary, memory usage.
     # On first question we emit it as a confirmation banner before the pipeline
     # starts.  On follow-ups it is already in state (checkpointer) so we skip.
+
+    dataset_profile = {}
     try:
         dataset_profile = profile_dataset(dataset.file_path)
-        profile_msg = format_profile_message(dataset_profile)
-        yield _sse({"type": "profile", "content": profile_msg})
+        # profile_msg = format_profile_message(dataset_profile)
+        # yield _sse({"type": "profile", "content": profile_msg})
     except Exception as exc:
-        dataset_profile = {}
-        yield _sse({"type": "chunk", "content": f"Could not profile dataset: {exc}\n"})
+        print(exc)
 
     # initial state 
     inputs: AnalystState = {

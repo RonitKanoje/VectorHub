@@ -110,30 +110,37 @@ const MessageBubble = ({
             </div>
           )}
 
-        {isApproval && onSend && isLast && (
-          <div className="mt-4 flex items-center gap-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-900 dark:bg-cyan-900/20">
-            <div className="flex-1 text-sm text-cyan-800 dark:text-cyan-200">
-              Tool needs approval:{" "}
-              <span className="font-semibold">
-                {("tool" in message && message.tool) || "Unknown Tool"}
-              </span>
+        {isAnalystMode &&
+          "visualizations" in message &&
+          message.visualizations &&
+          message.visualizations.length > 0 && (
+            <div className="mt-4 flex flex-col gap-4">
+              {message.visualizations.map((visualization, index) => (
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                >
+                  <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2">
+                    <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      {visualization.title}
+                    </div>
+
+                    {visualization.summary && (
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {visualization.summary}
+                      </div>
+                    )}
+                  </div>
+
+                  <img
+                    src={`data:image/png;base64,${visualization.image}`}
+                    alt={visualization.title}
+                    className="w-full h-auto object-contain p-2"
+                  />
+                </div>
+              ))}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => onSend("yes", true)}
-                className="flex items-center gap-1 rounded bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-700"
-              >
-                <Check className="h-3 w-3" /> Allow
-              </button>
-              <button
-                onClick={() => onSend("no", true)}
-                className="flex items-center gap-1 rounded bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-              >
-                <X className="h-3 w-3" /> Deny
-              </button>
-            </div>
-          </div>
-        )}
+          )}
       </div>
     </div>
   );

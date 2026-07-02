@@ -116,7 +116,7 @@ const MessageInput = ({
               ? "Loading conversation..."
               : isAnalystMode
                 ? "Ask a question about your dataset..."
-                : "Ask anything, or upload content for RAG..."
+                : "Ask anything"
           }
           disabled={disabled || isSending || isTranscribing}
           className="h-14 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-3 pl-14 pr-28 text-sm text-slate-950 dark:text-white shadow-sm outline-none transition focus:border-cyan-500 dark:focus:border-cyan-500 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400"

@@ -35,10 +35,6 @@ export const useAnalystChat = (token: string | null) => {
       try {
         const baseURL = api.defaults.baseURL || "http://localhost:3000";
 
-        // Note: We intentionally use native fetch() instead of Axios here.
-        // Axios traditionally downloads the whole response and its support for Server-Sent Events (SSE)
-        // streams in the browser is difficult to handle reliably without losing chunks.
-        // fetch() provides native stream readers which are essential for this streaming feature.
         const response = await fetch(`${baseURL}/api/ai/analyst_chat`, {
           method: "POST",
           headers: {
