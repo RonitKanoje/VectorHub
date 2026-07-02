@@ -1,7 +1,15 @@
+import asyncio
+import sys
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+from threadcore.infrastructure.db.session import configure_asyncio_for_windows
+
+configure_asyncio_for_windows()
+
 from threadcore.api.routes.chat import router as chat_router
 from threadcore.api.routes.ingestion import router as ingestion_router
 from threadcore.api.routes.threads import router as threads_router
@@ -23,7 +31,8 @@ async def lifespan(app: FastAPI):
     app.state.analyst_app = build_analyst_app(app.state.checkpointer)
     is_redis_available()
     yield
-    await app.state.pool.close()
+    if getattr(app.state, "pool", None) is not None:
+        await app.state.pool.close()
 
 
 app = FastAPI(title="ThreadCore API", lifespan=lifespan)

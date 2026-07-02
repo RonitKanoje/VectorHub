@@ -50,6 +50,15 @@ async def chat(
         }
     }
 
+    print("===========================")
+    print("REAL REQUEST")
+    print("===========================")
+    print("Authenticated user_id:", current_user)
+    print("thread_id:", chat_message.thread_id)
+    print("user_message:", chat_message.content)
+    print("config:", config)
+    print("Incoming HTTP request received by /chat")
+
     async def event_generator():
         try:
             print("STARTING EVENT GENERATOR")
@@ -100,6 +109,8 @@ async def chat(
             else:
                 print("NORMAL CHAT FLOW")
 
+                print("Invoking graph with astream_events()")
+                print("Graph node names before invocation:", list(chatbot.nodes))
                 stream = chatbot.astream_events(
                     {
                         "messages": [

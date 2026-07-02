@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, END, StateGraph
 from langsmith import traceable
 
 from threadcore.services.chat.llm_config import CONFIDENCE_THRESHOLD
@@ -14,68 +13,109 @@ from threadcore.services.chat.nodes import (
 from threadcore.services.chat.schemas import ChatState
 from threadcore.services.chat.tools_config import tool_node
 
-
 load_dotenv()
 
 
 def confidence_tools_condition(state: ChatState):
     """Determine if tools should be used based on confidence."""
     confidence = state.get("confidence", 1.0)
-    if confidence >= CONFIDENCE_THRESHOLD :
+
+    if confidence >= CONFIDENCE_THRESHOLD:
         return END
 
     last_message = state["messages"][-1]
+
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
 
     return END
 
-
-def intent_route_branches(state: ChatState):
+def intent_route(state: ChatState):
+    """Route after intent detection."""
     if state["route"] == "rag":
-        return ["rag_node", "personal_memory_node"]  
-    return ["simple_chat_node", "personal_memory_node"]
+        return "rag_node"
+    return "simple_chat_node"
 
 
 @traceable(name="Build Chatbot Graph")
 def build_chatbot(checkpointer):
+    print("===========================")
+    print("Building LangGraph chatbot")
+    print("===========================")
+
     graph = StateGraph(ChatState)
 
+    # Nodes
     graph.add_node("intent", intent_node)
-    graph.add_node("personal_memory_node", personal_memory_node)
-    graph.add_node("simple_chat_node", simple_chat_node)
     graph.add_node("rag_node", rag_node)
+    graph.add_node("simple_chat_node", simple_chat_node)
+    graph.add_node("personal_memory_node", personal_memory_node)
     graph.add_node("chat_node", chat_node)
     graph.add_node("tools", tool_node)
 
+    # Start
     graph.add_edge(START, "intent")
 
-    #Both branches run in parallel after intent
+    # Intent decides between chat and rag
     graph.add_conditional_edges(
         "intent",
-        intent_route_branches,
-        ["rag_node", "simple_chat_node", "personal_memory_node"],
+        intent_route,
+        {
+            "rag_node": "rag_node",
+            "simple_chat_node": "simple_chat_node",
+        },
     )
 
-    #rag_node and personal_memory_node both feed into chat_node
-    graph.add_edge(["rag_node", "personal_memory_node"], "chat_node")
+    # Memory always runs in parallel
+    graph.add_edge("intent", "personal_memory_node")
 
-    # simple_chat also waits for personal_memory_node
-    graph.add_edge(["simple_chat_node", "personal_memory_node"], END)
+    # Wait for BOTH:
+    #   rag/simple_chat
+    #        +
+    # personal_memory
+    graph.add_edge(
+        ["rag_node", "personal_memory_node"],
+        "chat_node",
+    )
 
+    graph.add_edge(
+        ["simple_chat_node", "personal_memory_node"],
+        "chat_node",
+    )
+
+    # Tool routing
     graph.add_conditional_edges(
         "chat_node",
         confidence_tools_condition,
-        {"tools": "tools", END: END},
+        {
+            "tools": "tools",
+            END: END,
+        },
     )
+
     graph.add_edge("tools", "chat_node")
 
-    return graph.compile(checkpointer=checkpointer, interrupt_before=["tools"])
+    compiled = graph.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["tools"],
+    )
+
+    print("Compiled graph nodes:", list(compiled.nodes))
+    print(
+        "Compiled graph node types:",
+        {name: type(node).__name__ for name, node in compiled.nodes.items()},
+    )
+
+    return compiled
 
 
 async def load_conversation(chatbot, thread_id: str):
     """Load conversation history from checkpointed state."""
-    state = await chatbot.aget_state(config={"configurable": {"thread_id": thread_id}})
+
+    state = await chatbot.aget_state(
+        config={"configurable": {"thread_id": thread_id}}
+    )
+
     if state is None:
         return []
 
@@ -84,8 +124,19 @@ async def load_conversation(chatbot, thread_id: str):
 
     for message in messages:
         if message.type == "human":
-            conversation.append({"role": "user", "content": message.content})
+            conversation.append(
+                {
+                    "role": "user",
+                    "content": message.content,
+                }
+            )
+
         elif message.type == "ai":
-            conversation.append({"role": "assistant", "content": message.content})
+            conversation.append(
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                }
+            )
 
     return conversation

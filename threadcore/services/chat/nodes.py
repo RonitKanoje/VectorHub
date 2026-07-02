@@ -1,5 +1,8 @@
 """Node functions for the conversation graph."""
 
+import traceback
+from unittest import result
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langsmith import traceable
 
@@ -40,67 +43,126 @@ def chat_node(state: ChatState):
     context_text = (
         "\n\n".join(context)
         if context
-        else "No relevant context found."
+        else "No relevant RAG context available."
     )
 
-    personal_context_text = (
-        "\n\n".join(personal_context)
+    personal_memory_text = (
+        "\n".join(f"- {m}" for m in personal_context)
         if personal_context
-        else "No personal memory found."
+        else "No personal memory available."
     )
 
-    metadata_lines = []
-
-    for item in meta:
-        item_type = item.get("type", "unknown")
-
-        if "start" in item and "duration" in item:
-            metadata_lines.append(
-                f"- {item_type}: start={item['start']}, duration={item['duration']}"
-            )
-
-        elif "location" in item:
-            metadata_lines.append(
-                f"- {item_type}: {item['location']}"
-            )
-
-        else:
-            metadata_lines.append(
-                f"- {item_type}"
-            )
-
-    meta_text = (
-        "\n".join(metadata_lines)
-        if metadata_lines
-        else "No timing metadata available."
-    )
-
-    messages = state.get("messages", []).copy()
-
-    if not messages:
-        messages.append(
-            SystemMessage(content=prompt1.template)
+    metadata_text = (
+        "\n".join(
+            [
+                (
+                    f"- {item.get('type')}: start={item['start']}, duration={item['duration']}"
+                    if "start" in item and "duration" in item
+                    else (
+                        f"- {item.get('type')}: {item['location']}"
+                        if "location" in item
+                        else f"- {item.get('type')}"
+                    )
+                )
+                for item in meta
+            ]
         )
+        if meta
+        else "No timing metadata."
+    )
 
-    messages.append(
-        HumanMessage(
-            content=f"""Context (use only if relevant):
+    # Previous conversation (without duplicating the latest user message)
+    history = state.get("messages", []).copy()
+
+    # Remove the last HumanMessage because we will send it again
+    if history and isinstance(history[-1], HumanMessage):
+        history = history[:-1]
+
+    messages = [
+
+        # Always include the system prompt
+        SystemMessage(
+            content="""
+You are VectorHub.
+
+You have access to THREE information sources.
+
+1. PERSONAL MEMORY
+- These are persistent facts about the user.
+- They are true unless contradicted.
+- Use them whenever the user asks about themselves.
+- Examples:
+  - What is my name?
+  - Where do I study?
+  - What are my goals?
+  - What projects am I building?
+
+2. RAG CONTEXT
+- This comes from uploaded documents.
+- Use it ONLY for questions about uploaded content.
+
+3. GENERAL KNOWLEDGE
+- If neither Personal Memory nor RAG contains the answer,
+  answer from your own knowledge.
+
+Priority:
+
+Personal Memory
+    ↓
+RAG Context
+    ↓
+General Knowledge
+
+Never ignore Personal Memory if it answers the user's question.
+"""
+        ),
+
+        SystemMessage(
+            content=f"""
+=========================
+PERSONAL MEMORY
+=========================
+
+{personal_memory_text}
+
+=========================
+RAG CONTEXT
+=========================
+
 {context_text}
 
-Personal memory about this user:
-{personal_context_text}
+=========================
+TIMING METADATA
+=========================
 
-Timing metadata (ONLY for 'when/where' questions):
-{meta_text}
+{metadata_text}
+"""
+        ),
 
-User question:
-{query}"""
-        )
-    )
+        *history,
+
+        HumanMessage(content=query),
+    ]
+
+    print("=" * 80)
+    print("FINAL PROMPT")
+    print("=" * 80)
+
+    for m in messages:
+        print(type(m).__name__)
+        print(m.content)
+        print("-" * 80)
 
     result = structured_llm.invoke(messages)
 
+    print("=" * 80)
+    print("CHAT NODE RESULT")
+    print(result)
+    print(type(result))
+    print("=" * 80)
+
     if result.confidence < CONFIDENCE_THRESHOLD:
+
         tool_response = tool_ready_llm.invoke(messages)
 
         return {
@@ -112,6 +174,7 @@ User question:
         "messages": [AIMessage(content=result.answer)],
         "confidence": result.confidence,
     }
+
 
 @traceable(name="RAG Tool")
 def rag_node(state: ChatState, config) -> dict:
@@ -135,28 +198,62 @@ def personal_memory_node(state: ChatState, config):
     user_id = config["configurable"]["user_id"]
     query = state["user_message"]
 
+    print("====================================================")
+    print("ENTERED personal_memory_node")
+    print("====================================================")
+    print("User message:", query)
+    print("Resolved user_id:", user_id)
+
     try:
+        print("Calling personal_memory_llm.invoke()")
         decision = personal_memory_llm.invoke(
             [
                 SystemMessage(content=personal_memory_prompt.template),
                 HumanMessage(content=query),
             ]
         )
-        facts = [fact.strip() for fact in decision.facts if fact.strip()]
-        should_store = decision.should_store and bool(facts)
+        print("LLM response:", decision)
+        print("LLM response type:", type(decision))
+        if hasattr(decision, "model_dump"):
+            print("Structured response dict:", decision.model_dump())
+        else:
+            print("Structured response repr:", repr(decision))
+
+        facts = [fact.strip() for fact in getattr(decision, "facts", []) if fact and str(fact).strip()]
+        decision_should_store = bool(getattr(decision, "should_store", False))
+        should_store = decision_should_store and bool(facts)
+
+        print("Parsed PersonalMemoryDecision:")
+        print("should_store from Gemini:", decision_should_store)
+        print("facts:", facts)
+        print("should_retrieve:", getattr(decision, "should_retrieve", None))
+        print("Effective should_store:", should_store)
+        if not decision_should_store:
+            print("EARLY RETURN CANDIDATE: Gemini returned should_store=False")
+        if not facts:
+            print("EARLY RETURN CANDIDATE: Gemini returned no facts")
+        print("facts:", facts)
 
     except Exception:
-        facts = []
-        should_store = False
+        print("Exception from personal_memory_llm.invoke()")
+        traceback.print_exc()
+        raise
 
     if should_store:
+        print("Calling store_user_memories()")
+        print("user_id:", user_id)
+        print("facts:", facts)
         store_user_memories(user_id=user_id, memories=facts)
+        print("EXIT store_user_memories call in personal_memory_node")
+    else:
+        print("EARLY RETURN: store_user_memories() not called")
+        print("Skipping store_user_memories() because should_store=False or facts=[]")
 
-    # Always retrieve — regardless of whether storing or not
     memories = retrieve_user_memories(user_id=user_id)
     personal_context = [m.memory_text for m in memories]
 
-    print(f"PERSONAL CONTEXT: {personal_context}")  # ← debug log
+    print("Retrieved personal_context:", personal_context)
+    print("EXIT personal_memory_node")
 
     return {
         "personal_context": personal_context,

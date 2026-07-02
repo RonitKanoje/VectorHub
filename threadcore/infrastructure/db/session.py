@@ -1,7 +1,26 @@
+import asyncio
+import sys
+
 import psycopg
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from threadcore.core.config import settings
+
+
+def configure_asyncio_for_windows() -> None:
+    if sys.platform != "win32":
+        return
+
+    try:
+        policy = asyncio.get_event_loop_policy()
+        if not isinstance(policy, asyncio.WindowsSelectorEventLoopPolicy):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except AttributeError:
+        pass
+
+
+configure_asyncio_for_windows()
+
 from psycopg_pool import AsyncConnectionPool
 
 

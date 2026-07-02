@@ -1,6 +1,7 @@
 from langchain_ollama import ChatOllama
 
 from threadcore.core.config import settings
+from threadcore.services.chat.gemini_memory_client import GeminiPersonalMemoryLLM
 from threadcore.services.chat.schemas import (
     PersonalMemoryDecision,
     RouteDecision,
@@ -8,9 +9,10 @@ from threadcore.services.chat.schemas import (
 )
 
 # Base LLM model
-llm = ChatOllama(
-    model=settings.ollama_chat_model,
-    base_url=settings.ollama_base_url,
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
     temperature=0,
 )
 
@@ -18,7 +20,7 @@ llm = ChatOllama(
 # Structured output variants
 structured_llm = llm.with_structured_output(StructuredAnswer)
 route_llm = llm.with_structured_output(RouteDecision)
-personal_memory_llm = llm.with_structured_output(PersonalMemoryDecision)
+personal_memory_llm = GeminiPersonalMemoryLLM()
 
 # Tool-enabled variant
 def get_tool_ready_llm(tools):

@@ -126,17 +126,6 @@ Return structured output containing:
 - facts
 
 Facts should be concise and self-contained.
-
-Good examples:
-- User's name is Ronit.
-- User is building VectorHub.
-- User prefers detailed explanations.
-- User is studying Chemical Engineering.
-
-Bad examples:
-- User said hello.
-- User asked a question about Python.
-- User uploaded a PDF.
 """,
     input_variables=[],
 )
