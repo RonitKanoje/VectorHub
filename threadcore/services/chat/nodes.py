@@ -288,6 +288,7 @@ def intent_node(state: ChatState):
 @traceable
 def simple_chat_node(state: ChatState): 
     """Handle simple chat without context."""
+    return {}
     query = state["user_message"]
     personal_context = state.get("personal_context", [])  # ← add this
 
