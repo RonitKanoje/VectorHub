@@ -11,19 +11,7 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import type { Thread } from "../types";
-
-interface ChatSidebarProps {
-  isSidebarOpen: boolean;
-  onToggleSidebar: () => void;
-  threads: Thread[];
-  activeThreadId: string | null;
-  isLoadingThreads: boolean;
-  onNewChat: () => void;
-  onSelectThread: (threadId: string) => void;
-  onLogout: () => void;
-  onLogoutAll: () => void;
-}
+import type { ChatSidebarProps } from "../types";
 
 const ChatSidebar = ({
   isSidebarOpen,
@@ -42,6 +30,7 @@ const ChatSidebar = ({
   const location = useLocation();
   const isOnAnalyst = location.pathname === "/analyst";
 
+  // listening for clicks outside the settings menu to close it
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (!settingsRef.current?.contains(e.target as Node)) {
@@ -66,13 +55,13 @@ const ChatSidebar = ({
 
         <div className="mb-5 pr-10">
           <h1 className="text-lg font-bold tracking-tight text-slate-950 dark:text-white">
-            Vectorr
+            VectorHub
           </h1>
         </div>
 
         <button
           type="button"
-          className="mb-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-black text-white hover:bg-slate-800 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400 text-sm font-semibold transition active:scale-[0.98]"
+          className="mb-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-black text-white hover:bg-slate-900 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400 text-sm font-semibold transition active:scale-[0.98]"
           onClick={onNewChat}
         >
           <Plus className="h-4 w-4" />

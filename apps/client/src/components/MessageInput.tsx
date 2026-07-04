@@ -19,10 +19,8 @@ const MessageInput = ({
   isSending = false,
   isAnalystMode = false,
   embedded = false,
-  // uploadedItems = [],
   onSend,
   onProcessMedia,
-  // onRemoveUpload,
 }: MessageInputProps) => {
   const [value, setValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);

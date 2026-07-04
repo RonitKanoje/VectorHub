@@ -30,7 +30,6 @@ const Chat = () => {
   const activeThreadIdRef = useRef<string | null>(null); //
   const loadedThreadIdRef = useRef<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  // const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
 
@@ -97,10 +96,6 @@ const Chat = () => {
     return () => window.clearTimeout(id);
   }, [activeThreadId, loadConversation, threads, isLoadingThreads]);
 
-  // useEffect(() => {
-  //   setUploadedItems([]);
-  // }, [activeThreadId]);
-
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const handleNewChatClick = () => {
@@ -150,11 +145,6 @@ const Chat = () => {
       MEDIA_LABELS[payload.media] ??
       payload.media;
 
-    // setUploadedItems((prev) => [
-    //   ...prev,
-    //   { type: payload.media, name, icon: "" },
-    // ]);
-
     if (payload.media === "video" || payload.media === "audio") {
       setMessages((prev) => [
         ...prev,
@@ -167,10 +157,6 @@ const Chat = () => {
       ]);
     }
   };
-
-  // const handleRemoveUpload = (index: number) => {
-  //   setUploadedItems((prev) => prev.filter((_, i) => i !== index));
-  // };
 
   const handleLogout = async () => {
     try {
@@ -224,7 +210,7 @@ const Chat = () => {
         >
           {showCenteredEmptyLayout && <EmptyState />}
           {!showCenteredEmptyLayout && (
-            <MessageList messages={messages} onSend={handleSendMessage} />
+            <MessageList messages={messages}  />
           )}
           <div
             className={`w-full${showCenteredEmptyLayout ? " max-w-4xl" : " shrink-0"}`}

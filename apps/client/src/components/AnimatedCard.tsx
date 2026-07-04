@@ -14,7 +14,7 @@ const AnimatedCard = ({ children }: AnimatedCardProps) => {
         <div className="absolute inset-[-100%] bg-[conic-gradient(from_0deg,#ff007f,#00f0ff,#7000ff,#ff007f)] animate-spin [animation-duration:3s]" />
 
         {/* Inner Card (Dark Box) */}
-        <div className="relative bg-[#09090b] rounded-[15px] p-8 md:p-10 z-10 w-full flex flex-col">
+        <div className="relative bg-[#09090b] rounded-[15px] p-5 md:p-10 z-10 w-full flex flex-col">
           {children}
         </div>
       </div>

@@ -59,10 +59,7 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
 
   return (
     <AnimatedCard>
-      <AuthHeader
-        title="Welcome Back"
-        subtitle="Enter your credentials to access your console"
-      />
+      <AuthHeader title="Welcome Back" subtitle="Sign in to continue" />
 
       {/* Inputs & Actions */}
       <div className="flex flex-col gap-4">
@@ -104,7 +101,7 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
           className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold rounded-xl transition-all duration-200 active:scale-[0.95] cursor-pointer text-sm flex items-center justify-center gap-2"
           onClick={() => {
             window.location.href = "http://localhost:3000/api/auth/google";
-          }}
+          }} // full page navigate to the backend route for Google OAuth
         >
           <FcGoogle size={22} />
           Continue with Google

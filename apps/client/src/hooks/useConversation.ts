@@ -5,25 +5,7 @@ import { pollThreadStatus } from "../utils/pollThreadStatus";
 import { getApiErrorMessage } from "../utils/errors";
 import type { ChatMessage, Thread } from "../types";
 import { store } from "../redux/store";
-
-interface UseConversationReturn {
-  messages: ChatMessage[];
-  activeStatus: string | null;
-  isLoadingConversation: boolean;
-  isSending: boolean;
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-  setActiveStatus: React.Dispatch<React.SetStateAction<string | null>>;
-  loadConversation: (threadId: string, refresh?: boolean) => Promise<void>;
-  abortStatusPolling: () => void;
-  handleSend: (
-    content: string,
-    activeThreadId: string | null,
-    ensureActiveThread: () => string,
-    setThreads: React.Dispatch<React.SetStateAction<Thread[]>>,
-    isApproval?: boolean,
-    isAnalystMode?: boolean,
-  ) => Promise<void>;
-}
+import type { UseConversationReturn } from "../types";
 
 let counter = 0;
 function uniqueId(prefix: string) {
@@ -39,8 +21,10 @@ export function useConversation(): UseConversationReturn {
   const pollAbortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
 
+
+  // we also have to update the messageRef therefore we are using useCallback to update the messages and messageRef at the same time
   const updateMessages = useCallback(
-    (updater: React.SetStateAction<ChatMessage[]>) => {
+    (updater: React.SetStateAction<ChatMessage[]>) => { // React.SetStateAction<T> is the type React uses for state updates. It allows the updater to be either a new state value of type T or a callback function that receives the previous state and returns the next state. This matches how React's setState functions work
       setMessages((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         messagesRef.current = next;
@@ -80,16 +64,19 @@ export function useConversation(): UseConversationReturn {
         const status = statusResponse.data.status;
         setActiveStatus(status);
 
-        if (status !== "completed" && !status.startsWith("failed")) {
+        // Only poll while ingestion is actually in progress
+        const processingStatuses = ["queued", "processing", "pending"];
+
+        if (processingStatuses.includes(status)) {
           const controller = new AbortController();
           pollAbortRef.current = controller;
 
-          pollThreadStatus(threadId, setActiveStatus, {
-            signal: controller.signal,
-          }).catch(() => {
-            setActiveStatus("failed");
-            toast.error("Processing failed");
-          });
+          pollThreadStatus(threadId, setActiveStatus, controller.signal).catch(
+            () => {
+              setActiveStatus("failed");
+              toast.error("Processing failed");
+            },
+          );
         }
       } catch {
         updateMessages([]);
@@ -130,7 +117,7 @@ export function useConversation(): UseConversationReturn {
             id: assistantId,
             role: "assistant" as const,
             content: "",
-            pending: true,
+            pending: true,  
           },
         ];
         return next;
@@ -143,7 +130,7 @@ export function useConversation(): UseConversationReturn {
           : "/api/ai/chat";
         const baseURL = api.defaults.baseURL || "http://localhost:3000";
 
-        // Note: We intentionally use native fetch() instead of Axios here.
+        // We intentionally use native fetch() instead of Axios here.
         // Axios traditionally downloads the whole response and its support for Server-Sent Events (SSE)
         // streams in the browser is difficult to handle reliably without losing chunks.
         // fetch() provides native stream readers which are essential for this streaming feature.
@@ -183,7 +170,7 @@ export function useConversation(): UseConversationReturn {
             .catch((e) => console.error("Could not name chat", e));
         }
 
-        const reader = response.body?.getReader(); // stream reader 
+        const reader = response.body?.getReader(); // stream reader
         const decoder = new TextDecoder("utf-8"); // converting binary bytes to text
         if (!reader) throw new Error("No response body stream");
 
@@ -197,13 +184,13 @@ export function useConversation(): UseConversationReturn {
         let aiResponseText = "";
 
         while (true) {
-          const { done, value } = await reader.read(); // reads packets
+          const { done, value } = await reader.read(); // reads packets done => boolean, value => Uint8Array
 
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true }); // decode the binary data to text
           const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // removing half chunks 
+          buffer = lines.pop() || ""; // removing half chunks
 
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
@@ -228,11 +215,11 @@ export function useConversation(): UseConversationReturn {
                   prev.map((msg) =>
                     msg.id === assistantId
                       ? {
-                        ...msg,
-                        requires_approval: true,
-                        tool: data.tool,
-                        pending: false,
-                      }
+                          ...msg,
+                          requires_approval: true,
+                          tool: data.tool,
+                          pending: false,
+                        }
                       : msg,
                   ),
                 );

@@ -15,9 +15,14 @@ export interface MediaPayload {
   file?: File;
 }
 
-/** A single uploaded item shown as a pill in the chat input area. */
-// export interface UploadedItem {
-//   type: string;
-//   name: string;
-//   icon?: string;
-// }
+export interface UseMediaProcessingReturn {
+  isProcessing: boolean;
+  resetProcessing: () => void;
+  handleProcessMedia: (
+    payload: MediaPayload,
+    ensureActiveThread: () => string,
+    setActiveStatus: (status: string | null) => void,
+    loadThreads: () => Promise<void>,
+  ) => Promise<void>;
+}
+

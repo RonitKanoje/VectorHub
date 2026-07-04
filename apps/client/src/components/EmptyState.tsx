@@ -25,7 +25,9 @@ const EmptyState = ({ isAnalystMode = false }: { isAnalystMode?: boolean }) => {
   return (
     <div className="flex flex-col items-center justify-center space-y-3 text-center">
       <h2 className="text-3xl font-semibold text-slate-800 dark:text-slate-200">
-        {nameOfUSer ? `${greetingPrefix}, ${nameOfUSer}` : `${greetingPrefix} `}
+        {nameOfUSer
+          ? `${greetingPrefix}, ${nameOfUSer}!`
+          : `${greetingPrefix} !!`}
       </h2>
 
       <p className="max-w-lg text-slate-600 dark:text-slate-400">

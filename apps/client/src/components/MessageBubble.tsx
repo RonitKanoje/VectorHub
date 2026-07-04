@@ -1,14 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import {
-  Check,
-  X,
-  FileText,
-  Video,
-  Mic,
-  FileBarChart,
-  Link,
-  Play,
-} from "lucide-react";
+import { FileText, Video, Mic, FileBarChart, Link, Play } from "lucide-react";
 import type { ChatMessage, AnalystMessage } from "../types";
 
 interface MessageBubbleProps {
@@ -18,16 +9,9 @@ interface MessageBubbleProps {
   isLast?: boolean;
 }
 
-const MessageBubble = ({
-  message,
-  isAnalystMode,
-  onSend,
-  isLast,
-}: MessageBubbleProps) => {
+const MessageBubble = ({ message, isAnalystMode }: MessageBubbleProps) => {
   const isUser = message.role === "user";
   const isPending = "pending" in message && message.pending;
-  const isApproval =
-    "requires_approval" in message && message.requires_approval;
 
   const getMediaIcon = (type: string) => {
     switch (type) {
@@ -54,10 +38,7 @@ const MessageBubble = ({
         className={`max-w-[85%] rounded-2xl px-5 py-4 ${isUser ? "bg-slate-900 text-white dark:bg-slate-700 dark:text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 shadow-sm"}`}
       >
         {!isUser && isAnalystMode && (
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-violet-600 dark:text-violet-400">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30">
-              ✨
-            </div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-violet-400">
             Data Analyst
           </div>
         )}

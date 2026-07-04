@@ -10,9 +10,9 @@ function wait(ms: number) {
 export async function pollThreadStatus(
   threadId: string,
   onStatus: (status: string) => void,
-  options: { maxDurationMs?: number; signal?: AbortSignal } = {},
+  signal?: AbortSignal,
 ) {
-  const maxDuration = options.maxDurationMs ?? 15 * 60 * 1000;
+  const maxDuration = 15 * 60 * 1000;
   const startTime = Date.now();
 
   const getInterval = (attempt: number) => {
@@ -25,7 +25,7 @@ export async function pollThreadStatus(
     await wait(getInterval(attempt));
 
     // Stop if the caller cancelled (e.g. user switched threads)
-    if (options.signal?.aborted) return;
+    if (signal?.aborted) return;
 
     if (Date.now() - startTime >= maxDuration) {
       onStatus("pending");

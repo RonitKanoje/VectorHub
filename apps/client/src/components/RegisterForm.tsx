@@ -51,7 +51,7 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
         /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
       if (!passwordRegex.test(password)) {
         toast.error(
-          "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character"
+          "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number and one special character",
         );
         return;
       }
@@ -78,7 +78,7 @@ const RegisterForm = ({ onLoginClick }: RegisterFormProps) => {
     <AnimatedCard>
       <AuthHeader
         title="Create Account"
-        subtitle="Get started with your developer workspace"
+        subtitle="Sign up to get started with VectorHub"
       />
 
       {/* Inputs & Actions */}
