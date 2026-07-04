@@ -25,24 +25,17 @@ const Analyst = () => {
   const loadedThreadIdRef = useRef<string | null>(null);
   const wasStreamingRef = useRef(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-
   const messages = useSelector((s: RootState) => s.analyst.messages);
   const isSending = useSelector((s: RootState) => s.analyst.isSending);
   const uploadedDatasets = useSelector(
     (s: RootState) => s.analyst.uploadedDatasets,
   );
+
   const token = useSelector((s: RootState) => s.auth.accessToken);
 
   const setActiveThreadId = useCallback((id: string) => {
-    console.log("setActiveThreadId called", {
-      previousActiveThreadId: activeThreadIdRef.current,
-      newId: id,
-    });
-    console.trace();
-    console.log("Setting active thread:", id);
     activeThreadIdRef.current = id;
     _setActiveThreadId(id);
   }, []);
@@ -50,37 +43,18 @@ const Analyst = () => {
   const { threads, isLoadingThreads, loadThreads, handleNewChat, setThreads } =
     useThreads();
 
-  useEffect(() => {
-    console.log("✅ Analyst mounted");
-
-    return () => {
-      console.log("❌ Analyst unmounted");
-    };
-  }, []);
-
-  useEffect(() => {
-    console.log({
-      activeThreadId,
-      messages: messages.length,
-      uploadedDatasets: uploadedDatasets.length,
-    });
-  }, [activeThreadId, messages, uploadedDatasets]);
-
   const { loadConversation } = useAnalystConversation();
 
   useEffect(() => {
     const id = window.setTimeout(() => {
-      console.log("Loading analyst thread list");
-      void loadThreads("analyst").then(() => {
-        console.log("Finished loading analyst thread list");
-      });
+      void loadThreads("analyst");
     }, 0);
     return () => window.clearTimeout(id);
   }, [loadThreads]);
 
   useEffect(() => {
     dispatch(resetForNewChat());
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     if (isSending) {
@@ -89,22 +63,12 @@ const Analyst = () => {
   }, [isSending]);
 
   useEffect(() => {
-    console.log("Thread loading effect started", {
-      activeThreadId,
-      loadedThreadIdRefCurrent: loadedThreadIdRef.current,
-      isSending,
-      isLoadingThreads,
-      threadCount: threads.length,
-    });
-
     if (!activeThreadId) {
-      console.log("Branch: no active thread");
       loadedThreadIdRef.current = null;
       return;
     }
 
     if (activeThreadId === loadedThreadIdRef.current) {
-      console.log("Branch: already loaded");
       return;
     }
 
@@ -114,18 +78,13 @@ const Analyst = () => {
 
     if (!isPersistedThread) {
       if (isLoadingThreads) {
-        console.log("Branch: waiting for threads");
         return;
       }
-      console.log("Branch: new temporary thread");
       loadedThreadIdRef.current = activeThreadId;
       return;
     }
 
-    console.log("Branch: persisted thread found");
-
     if (wasStreamingRef.current && !isSending) {
-      console.log("Branch: skipping because stream just finished");
       wasStreamingRef.current = false; // reset for next message
       loadedThreadIdRef.current = activeThreadId;
       return;
@@ -133,23 +92,17 @@ const Analyst = () => {
 
     loadedThreadIdRef.current = activeThreadId;
 
-    console.log("Branch: about to call loadConversation()");
     const id = window.setTimeout(() => {
-      console.log("Loading conversation:", activeThreadId);
       void loadConversation(activeThreadId);
     }, 0);
-    console.log("Conversation scheduled");
     return () => window.clearTimeout(id);
   }, [activeThreadId, loadConversation, isSending, threads, isLoadingThreads]);
 
   const handleToggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const handleNewChatClick = () => {
-    console.log("New Chat clicked");
-    console.log("activeThreadId before reset:", activeThreadId);
     dispatch(resetForNewChat());
     loadedThreadIdRef.current = null;
-    console.log("activeThreadId after reset:", activeThreadId);
     handleNewChat(
       setActiveThreadId,
       () => {},
@@ -161,20 +114,10 @@ const Analyst = () => {
     messages.length === 0 && uploadedDatasets.length === 0;
 
   const handleAnalystProcessMedia = async (payload: MediaPayload) => {
-    console.log("handleAnalystProcessMedia payload:", payload);
-    // const name = payload.file?.name ?? payload.path ?? "Dataset";
-    // const content = `Uploaded dataset: ${name}`;
-
-    // await handleSend(
-    //   content,
-    //   getEnsuredThread(),
-    //   setThreads
-    // );
     await handleProcessMedia(
       payload,
       () => {
         const threadId = getEnsuredThread();
-        console.log("handleAnalystProcessMedia ensured thread:", threadId);
         return threadId;
       },
       () => loadThreads("analyst"),
@@ -183,17 +126,12 @@ const Analyst = () => {
 
   const getEnsuredThread = useCallback(() => {
     if (activeThreadIdRef.current) {
-      console.log(
-        "getEnsuredThread: reused existing thread",
-        activeThreadIdRef.current,
-      );
       return activeThreadIdRef.current;
     }
 
     const threadId = createThreadId();
     activeThreadIdRef.current = threadId;
     _setActiveThreadId(threadId);
-    console.log("getEnsuredThread: created new thread", threadId);
     return threadId;
   }, []);
 
@@ -203,8 +141,6 @@ const Analyst = () => {
 
   const submitMessage = async (content: string) => {
     const threadId = getEnsuredThread();
-    console.log("submitMessage", { content, threadId });
-
     await handleSend(content, threadId, setThreads);
   };
 

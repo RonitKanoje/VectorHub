@@ -5,8 +5,6 @@ import type { ChatMessage, AnalystMessage } from "../types";
 interface MessageBubbleProps {
   message: ChatMessage | AnalystMessage;
   isAnalystMode?: boolean;
-  onSend?: (content: string, isApproval?: boolean) => Promise<void>;
-  isLast?: boolean;
 }
 
 const MessageBubble = ({ message, isAnalystMode }: MessageBubbleProps) => {

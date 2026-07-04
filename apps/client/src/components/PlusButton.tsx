@@ -9,7 +9,11 @@ interface PlusButtonProps {
   onProcessMedia: (payload: MediaPayload) => Promise<void>;
 }
 
-const PlusButton = ({ disabled = false, isAnalystMode = false, onProcessMedia }: PlusButtonProps) => {
+const PlusButton = ({
+  disabled = false,
+  isAnalystMode = false,
+  onProcessMedia,
+}: PlusButtonProps) => {
   const [showOptions, setShowOptions] = useState(false);
 
   return (

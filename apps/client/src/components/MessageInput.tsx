@@ -30,21 +30,22 @@ const MessageInput = ({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); // can i use microphone access to record audio
+      audioChunksRef.current = []; // store the audio chunks in a ref to persist across renders
 
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm",
-      });
+      }); // create a new MediaRecorder instance with the audio stream and specify the MIME type as "audio/webm"
+      // and Listen to the microphone stream and save it.
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (event) => {
+      mediaRecorder.ondataavailable = (event) => { // when data is available, push it to the audioChunksRef
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = async () => { // when the recording stops, create a blob from the audio chunks and send it to the server for transcription
         setIsTranscribing(true);
         try {
           const audioBlob = new Blob(audioChunksRef.current, {

@@ -7,6 +7,7 @@ export type {
   ChatMessage,
   UseConversationReturn,
   ChatSidebarProps,
+  
 } from "./chat";
 export type { Thread, ThreadMode, UseThreadsReturn } from "./thread";
 export type {
