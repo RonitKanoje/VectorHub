@@ -61,12 +61,6 @@ export async function login(req, res) {
       "7d",
     );
 
-    console.log({
-      userId: user._id,
-      username: user.username,
-      email: user.email,
-    });
-
     const accessToken = await generateToken(
       {
         userId: user._id,

@@ -33,7 +33,6 @@ function buildClientRedirect(path, params) {
 
 export const googleLoginPage = async (req, res) => {
   try {
-    console.log("GOOGLE LOGIN HIT");
     const state = crypto.randomUUID();
     const codeVerifier = generateCodeVerifier();
 

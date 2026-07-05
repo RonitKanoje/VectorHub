@@ -18,10 +18,10 @@ export function initWebSocket(server) {
     console.error("Failed to initialize Groq. Check GROQ_API_KEY.", err);
   }
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws) => { // whenever a new client connects to the websocket server run this function
     let audioBuffer = Buffer.alloc(0);
 
-    ws.on("message", async (message) => {
+    ws.on("message", async (message) => { // whenever a message is received from the client run this function
       if (typeof message === "string") {
         try {
           const data = JSON.parse(message);

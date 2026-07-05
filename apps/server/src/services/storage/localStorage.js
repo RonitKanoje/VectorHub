@@ -13,15 +13,6 @@ export class LocalStorageProvider extends IStorageProvider {
     return file.path;
   }
 
-  async deleteFile(filePath) {
-    try {
-      await fs.unlink(filePath); // delete file from the disk
-    } catch (err) {
-      if (err.code !== "ENOENT") {
-        throw err;
-      }
-    }
-  }
 }
 
 export const localStorageProvider = new LocalStorageProvider();

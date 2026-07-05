@@ -66,7 +66,7 @@ const MessageBubble = ({ message, isAnalystMode }: MessageBubbleProps) => {
           </div>
         )}
 
-        {isAnalystMode &&
+        {/* {isAnalystMode &&
           "visualizations" in message &&
           message.visualizations &&
           Object.keys(message.visualizations).length > 0 && (
@@ -87,7 +87,7 @@ const MessageBubble = ({ message, isAnalystMode }: MessageBubbleProps) => {
                 </div>
               ))}
             </div>
-          )}
+          )} */}
 
         {isAnalystMode &&
           "visualizations" in message &&
