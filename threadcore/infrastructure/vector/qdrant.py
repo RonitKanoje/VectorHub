@@ -44,17 +44,11 @@ def _ensure_collection(collection_name: str) -> None:
         else:
             current_size = None
 
-        print(f"Collection: {collection_name}")
-        print(f"Expected dimension: {expected_size}")
-        print(f"Current dimension: {current_size}")
-
         if current_size != expected_size:
-            print("Embedding dimension changed. Recreating collection...")
             client.delete_collection(collection_name)
             exists = False
 
     if not exists:
-        print(f"Creating collection '{collection_name}' with dimension {expected_size}")
 
         client.create_collection(
             collection_name=collection_name,
@@ -85,8 +79,6 @@ def create_vector_store(collection_name: str) -> QdrantVectorStore:
         )
 
     except ImportError:
-        print("fastembed not installed. Falling back to dense retrieval.")
-
         return QdrantVectorStore(
             client=client,
             collection_name=collection_name,

@@ -1,5 +1,4 @@
 from typing import Literal
-
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
@@ -45,7 +44,6 @@ class ThreadNameFromUploadRequest(BaseModel):
     thread_id: str = Field(..., description="Thread ID for chat context")
     media: str = Field(..., description="Media type uploaded")
     filename: str = Field(..., description="Filename of the uploaded media")
-
 
 
 class ThreadResponse(BaseModel):

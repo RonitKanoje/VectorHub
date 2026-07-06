@@ -78,7 +78,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
-    print("OLLAMA_CHAT_MODEL FROM SETTINGS:", settings.ollama_chat_model)
     settings.ensure_runtime_directories()
     return settings
 

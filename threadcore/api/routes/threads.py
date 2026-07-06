@@ -20,13 +20,6 @@ async def get_threads(
     current_user: str = Depends(_resolve_user),
     db: Session = Depends(get_db),
 ):
-    print("=" * 50)
-    print("MODE:", mode)
-    print("USER:", current_user)
-
+   
     threads = get_user_threads(db, current_user, mode)
-
-    print("THREADS:", threads)
-    print("COUNT:", len(threads))
-
     return threads

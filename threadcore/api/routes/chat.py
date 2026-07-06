@@ -12,7 +12,10 @@ from threadcore.infrastructure.db.session import get_db
 from threadcore.services.chat.graph import load_conversation
 from threadcore.services.chat.naming import title_from_message
 from langchain_core.messages import ToolMessage
-
+import traceback
+import os
+from fastapi.responses import StreamingResponse
+import json
 
 router = APIRouter(tags=["chat"])
 
@@ -21,9 +24,6 @@ def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id"
     """Get current user ID from header"""
     return get_current_user(x_user_id=x_user_id) ## it will return the current user 
 
-
-from fastapi.responses import StreamingResponse
-import json
 
 @router.post("/chat")
 async def chat(
@@ -50,33 +50,19 @@ async def chat(
         }
     }
 
-    print("===========================")
-    print("REAL REQUEST")
-    print("===========================")
-    print("Authenticated user_id:", current_user)
-    print("thread_id:", chat_message.thread_id)
-    print("user_message:", chat_message.content)
-    print("config:", config)
-    print("Incoming HTTP request received by /chat")
-
     async def event_generator():
         try:
-            print("STARTING EVENT GENERATOR")
 
             if getattr(chat_message, "is_tool_approval", False):
-                print("TOOL APPROVAL FLOW")
 
                 if chat_message.content.lower() == "yes":
-                    print("USER APPROVED TOOL")
+
                     stream = chatbot.astream_events(
                         None,
                         config=config,
                         version="v2",
                     )
                 else:
-
-                    
-
                     state = await chatbot.aget_state(config)
 
                     if state.values and "messages" in state.values:
@@ -107,10 +93,6 @@ async def chat(
                     )
 
             else:
-                print("NORMAL CHAT FLOW")
-
-                print("Invoking graph with astream_events()")
-                print("Graph node names before invocation:", list(chatbot.nodes))
                 stream = chatbot.astream_events(
                     {
                         "messages": [
@@ -122,12 +104,9 @@ async def chat(
                     version="v2",
                 )
 
-            print("STREAM CREATED")
-
             async for event in stream:
                 try:
                     event_type = event.get("event")
-                    print("EVENT:", event_type)
 
                     if event_type == "on_chat_model_stream":
                         chunk = event["data"]["chunk"].content
@@ -138,19 +117,13 @@ async def chat(
                                 f"{json.dumps({'type':'chunk','content':chunk})}\n\n"
                             )
 
-                except Exception as e:
-                    import traceback
-
-                    print("\nERROR PROCESSING EVENT")
+                except Exception as e:   
                     traceback.print_exc()
                     raise
-
-            print("STREAM FINISHED")
 
             state = await chatbot.aget_state(config)
 
             if state.next and "tools" in state.next:
-                print("WAITING FOR TOOL APPROVAL")
 
                 if state.values and "messages" in state.values:
                     last_msg = state.values["messages"][-1]
@@ -166,16 +139,10 @@ async def chat(
                             f"{json.dumps({'type':'approval','tool':tool_name})}\n\n"
                         )
 
-            print("SENDING DONE")
-
             yield "data: [DONE]\n\n"
 
-        except Exception as e:
-            import traceback
-
-            print("\n========== STREAM CRASH ==========")
+        except Exception as e:      
             traceback.print_exc()
-            print("ERROR:", repr(e))
 
             yield (
                 f"data: "
@@ -229,7 +196,7 @@ async def name_thread_from_upload(
         if thread and thread.title and thread.title != "New Chat":
             return {"title": thread.title}
 
-        import os
+        
         # Clean up the filename: remove extension, replace hyphens/underscores, title case
         name_without_ext = os.path.splitext(payload.filename)[0]
         clean_name = name_without_ext.replace("_", " ").replace("-", " ").strip().title()

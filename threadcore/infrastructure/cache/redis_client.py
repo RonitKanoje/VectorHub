@@ -1,6 +1,5 @@
 import redis
 from redis.exceptions import RedisError
-
 from threadcore.core.config import settings
 
 

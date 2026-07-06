@@ -1,5 +1,5 @@
 from threadcore.infrastructure.db.session import engine, Base
-from threadcore.domains.rag.models import (
+from threadcore.domains.rag.models import ( ## when we import models basically we are executing the model definitions and registering them with SQLAlchemy's metadata(Base). This is necessary for creating tables in the database.
     MemoryConflictDB,
     MemoryEventDB,
     MemoryTopicDB,

@@ -17,3 +17,4 @@ data/runtime/
 node_modules
 
 .cursor
+data

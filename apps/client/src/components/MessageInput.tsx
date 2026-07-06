@@ -1,7 +1,6 @@
 import { ArrowUp, Mic, MicOff } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import PlusButton from "./PlusButton";
-import api from "../services/api";
 import type { MediaPayload } from "../types";
 
 interface MessageInputProps {
@@ -14,6 +13,8 @@ interface MessageInputProps {
   onRemoveUpload?: (index: number) => void;
 }
 
+const SEGMENT_DURATION_MS = 3000;
+
 const MessageInput = ({
   disabled = false,
   isSending = false,
@@ -25,71 +26,151 @@ const MessageInput = ({
   const [value, setValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const isRecordingRef = useRef(false);
+  const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Records exactly one independent, self-contained 3s WebM segment, sends it,
+  // then immediately starts the next one. Each MediaRecorder instance is used
+  // for a single start()->stop() cycle so every Blob is a fully valid,
+  // independently-decodable WebM file. No shared header, no chunk merging.
+  const recordSegment = () => {
+    const stream = streamRef.current;
+    if (!isRecordingRef.current || !stream) return;
+
+    const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    mediaRecorderRef.current = recorder;
+    const chunks: BlobPart[] = [];
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const ws = wsRef.current;
+      if (blob.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(blob);
+      }
+
+      if (isRecordingRef.current) {
+        recordSegment();
+      } else {
+        finishStop();
+      }
+    };
+
+    recorder.start();
+    segmentTimerRef.current = setTimeout(() => {
+      if (recorder.state !== "inactive") recorder.stop();
+    }, SEGMENT_DURATION_MS);
+  };
+
+  const finishStop = () => {
+    setIsTranscribing(true);
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "STOP_RECORDING" }));
+    } else {
+      setIsTranscribing(false);
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); // can i use microphone access to record audio
-      audioChunksRef.current = []; // store the audio chunks in a ref to persist across renders
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm",
-      }); // create a new MediaRecorder instance with the audio stream and specify the MIME type as "audio/webm"
-      // and Listen to the microphone stream and save it.
-      mediaRecorderRef.current = mediaRecorder;
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsHost =
+        window.location.hostname === "localhost"
+          ? "localhost:3000"
+          : window.location.host;
+      const ws = new WebSocket(`${wsProtocol}//${wsHost}`);
+      wsRef.current = ws;
 
-      mediaRecorder.ondataavailable = (event) => { // when data is available, push it to the audioChunksRef
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      ws.onopen = () => {
+        isRecordingRef.current = true;
+        setIsRecording(true);
+        recordSegment();
       };
 
-      mediaRecorder.onstop = async () => { // when the recording stops, create a blob from the audio chunks and send it to the server for transcription
-        setIsTranscribing(true);
+      ws.onmessage = (event) => {
         try {
-          const audioBlob = new Blob(audioChunksRef.current, {
-            type: "audio/webm",
-          });
-          const formData = new FormData();
-          formData.append("audio", audioBlob, "recording.webm");
-
-          const response = await api.post<{ text: string }>(
-            "/api/ai/transcribe",
-            formData,
-            {
-              headers: { "Content-Type": "multipart/form-data" },
-            },
-          );
-
-          if (response.data.text) {
-            setValue((prev) => (prev + " " + response.data.text).trim());
+          const data = JSON.parse(event.data);
+          if (
+            data.type === "partial_transcript" ||
+            data.type === "final_transcript"
+          ) {
+            if (data.text) {
+              setValue((prev) => (prev ? `${prev} ${data.text}` : data.text));
+            }
+            if (data.type === "final_transcript") {
+              setIsTranscribing(false);
+              ws.close();
+            }
+          } else if (data.type === "error") {
+            console.error("Transcription error from server:", data.message);
+            setIsTranscribing(false);
+            ws.close();
           }
-        } catch (err) {
-          console.error("Transcription failed", err);
-        } finally {
-          setIsTranscribing(false);
+        } catch (e) {
+          console.error("Failed to parse WS message", e);
         }
-        // Clean up stream tracks
-        stream.getTracks().forEach((t) => t.stop());
       };
 
-      mediaRecorder.start();
-      setIsRecording(true);
+      ws.onerror = () => {
+        console.error("WebSocket error during transcription");
+        isRecordingRef.current = false;
+        setIsRecording(false);
+        setIsTranscribing(false);
+      };
+
+      ws.onclose = () => {
+        wsRef.current = null;
+      };
     } catch (err) {
       console.error("Microphone access error", err);
     }
   };
 
   const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-    }
+    isRecordingRef.current = false;
     setIsRecording(false);
+
+    if (segmentTimerRef.current) {
+      clearTimeout(segmentTimerRef.current);
+      segmentTimerRef.current = null;
+    }
+
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop(); // onstop sends the final blob, then finishStop() runs
+    } else {
+      finishStop();
+    }
   };
+
+  // Cleanup on unmount: stop any in-progress recording, release the mic, close the socket if user switch the page 
+  useEffect(() => {
+    return () => {
+      isRecordingRef.current = false;
+      if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current);
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        mediaRecorderRef.current.stop();
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      wsRef.current?.close();
+    };
+  }, []);
 
   const handleSubmit = async () => {
     const content = value.trim();
@@ -109,7 +190,7 @@ const MessageInput = ({
       <div className="relative mx-auto w-full max-w-4xl">
         <input
           type="text"
-          value={isTranscribing ? "Transcribing..." : value}
+          value={value}
           placeholder={
             disabled
               ? "Loading conversation..."
@@ -117,7 +198,7 @@ const MessageInput = ({
                 ? "Ask a question about your dataset..."
                 : "Ask anything"
           }
-          disabled={disabled || isSending || isTranscribing}
+          disabled={disabled || isSending}
           className="h-14 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-3 pl-14 pr-28 text-sm text-slate-950 dark:text-white shadow-sm outline-none transition focus:border-cyan-500 dark:focus:border-cyan-500 focus:bg-white dark:focus:bg-slate-700 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 disabled:text-slate-400"
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -139,9 +220,7 @@ const MessageInput = ({
           className={`absolute right-14 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl transition ${
             isRecording
               ? "bg-red-500 text-white animate-pulse"
-              : isTranscribing
-                ? "bg-amber-500 text-white animate-pulse"
-                : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+              : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
           }`}
           aria-label={isRecording ? "Stop recording" : "Start recording"}
         >

@@ -20,8 +20,6 @@ def create_dataset(
     .first()
 )
 
-    print("THREAD ID =", thread_id)
-    print("THREAD FOUND =", thread)
     dataset = DatasetDB(
         thread_id=thread_id,
         user_id=user_id,

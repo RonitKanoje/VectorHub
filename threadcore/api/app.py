@@ -1,15 +1,10 @@
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-
 from threadcore.infrastructure.db.session import configure_asyncio_for_windows
-
-configure_asyncio_for_windows()
-
 from threadcore.api.routes.chat import router as chat_router
 from threadcore.api.routes.ingestion import router as ingestion_router
 from threadcore.api.routes.threads import router as threads_router
@@ -21,9 +16,11 @@ from threadcore.services.chat.graph import build_chatbot
 from threadcore.services.analyst.graph import build_analyst_app
 from threadcore.api.routes.dataset import router as dataset_router
 
+configure_asyncio_for_windows()
+
 ## before accepting anything just run this code 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI): ## newer version of fastapi uses lifespan instead of startup and shutdown events
     settings.ensure_runtime_directories()
     init_db()
     app.state.checkpointer, app.state.pool = await get_checkpointer()
@@ -31,13 +28,13 @@ async def lifespan(app: FastAPI):
     app.state.analyst_app = build_analyst_app(app.state.checkpointer)
     is_redis_available()
     yield
-    if getattr(app.state, "pool", None) is not None:
+    if getattr(app.state, "pool", None) is not None: ## closing the pool of connections to the database when the application is shutting down
         await app.state.pool.close()
 
 
 app = FastAPI(title="ThreadCore API", lifespan=lifespan)
 
-
+## Exception handlers
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     body = await request.body()
@@ -45,16 +42,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     message = "; ".join(
         f"{'.'.join(str(part) for part in error.get('loc', ['request']))}: {error.get('msg')}"
         for error in errors
-    )
-    print(
-        "Request validation failed",
-        {
-            "method": request.method,
-            "path": request.url.path,
-            "errors": errors,
-            "body": body.decode("utf-8", errors="replace"),
-            "has_x_user_id": bool(request.headers.get("X-User-Id")),
-        },
     )
     return JSONResponse(
         status_code=422,
@@ -70,8 +57,6 @@ async def read_root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
-
-
 
 app.include_router(chat_router)
 app.include_router(ingestion_router)

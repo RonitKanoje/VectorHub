@@ -1,6 +1,5 @@
 from fastapi import Header, HTTPException, Request
 from sqlalchemy.orm import Session
-
 from threadcore.services.rag.thread_service import get_user_thread as get_thread_for_user
 
 

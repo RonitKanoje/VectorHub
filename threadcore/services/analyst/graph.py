@@ -29,14 +29,14 @@ def route_after_start(state: AnalystState) -> str:
 
 # Graph definition
 
-_workflow = StateGraph(AnalystState)
+workflow = StateGraph(AnalystState)
 
-_workflow.add_node("preprocessor_agent", preprocessor_agent)
-_workflow.add_node("eda_agent", eda_agent)
-_workflow.add_node("analyst_agent", analyst_agent)
-_workflow.add_node("synthesis_agent", synthesis_agent)
+workflow.add_node("preprocessor_agent", preprocessor_agent)
+workflow.add_node("eda_agent", eda_agent)
+workflow.add_node("analyst_agent", analyst_agent)
+workflow.add_node("synthesis_agent", synthesis_agent)
 
-_workflow.add_conditional_edges(
+workflow.add_conditional_edges(
     START,
     route_after_start,
     {
@@ -45,24 +45,24 @@ _workflow.add_conditional_edges(
     },
 )
 
-_workflow.add_edge("preprocessor_agent", "eda_agent")
-_workflow.add_edge("eda_agent", "analyst_agent")
-_workflow.add_edge("analyst_agent", "synthesis_agent")
-_workflow.add_edge("synthesis_agent", END)
+workflow.add_edge("preprocessor_agent", "eda_agent")
+workflow.add_edge("eda_agent", "analyst_agent")
+workflow.add_edge("analyst_agent", "synthesis_agent")
+workflow.add_edge("synthesis_agent", END)
 
 # Compiled without checkpointer — injected at call-time via config
-analyst_app = _workflow.compile()
+analyst_app = workflow.compile()
 
 
 def build_analyst_app(checkpointer=None):
     """Re-compile with an optional async checkpointer (call once at startup)."""
-    return _workflow.compile(checkpointer=checkpointer)
+    return workflow.compile(checkpointer=checkpointer)
 
 
 # Streaming entry point
 
 # Progress labels shown to the user as SSE chunks
-_PROGRESS_LABELS: dict[str, str] = {
+PROGRESS_LABELS: dict[str, str] = {
     "preprocessor_agent": "Preprocessing data…",
     "eda_agent":          "Running exploratory analysis…",
     "analyst_agent":      "Agent thinking and running tools…",
@@ -99,7 +99,7 @@ async def stream_analyst_response(
     )
 
     if not dataset:
-        yield _sse({"type": "chunk", "content": "Please upload a CSV or Excel dataset first."})
+        yield sse({"type": "chunk", "content": "Please upload a CSV or Excel dataset first."})
         yield "data: [DONE]\n\n"
         return
 
@@ -112,7 +112,7 @@ async def stream_analyst_response(
     try:
         dataset_profile = profile_dataset(dataset.file_path)
         # profile_msg = format_profile_message(dataset_profile)
-        # yield _sse({"type": "profile", "content": profile_msg})
+        # yield sse({"type": "profile", "content": profile_msg})
     except Exception as exc:
         print(exc)
 
@@ -138,8 +138,8 @@ async def stream_analyst_response(
         node = event.get("metadata", {}).get("langgraph_node", "")
 
         # Node entry → progress ping
-        if kind == "on_chain_start" and node in _PROGRESS_LABELS:
-            yield _sse({"type": "progress", "content": _PROGRESS_LABELS[node]})
+        if kind == "on_chain_start" and node in PROGRESS_LABELS:
+            yield sse({"type": "progress", "content": PROGRESS_LABELS[node]})
 
         # LLM streaming tokens (from analyst_agent or synthesis_agent)
         # Guard: skip any chunk that looks like base64 image data — the LLM
@@ -149,7 +149,7 @@ async def stream_analyst_response(
             if chunk_content and isinstance(chunk_content, str):
                 # Drop chunks that are part of a data URI (base64 leaking into text)
                 if "data:image" not in chunk_content and "base64," not in chunk_content:
-                    yield _sse({"type": "chunk", "content": chunk_content})
+                    yield sse({"type": "chunk", "content": chunk_content})
 
         # Tool execution completed inside analyst_agent
         if kind == "on_tool_end" and node == "analyst_agent":
@@ -168,7 +168,7 @@ async def stream_analyst_response(
                 try:
                     vis_data = json.loads(output_str)
                     if isinstance(vis_data, dict) and vis_data.get("type") == "visualization":
-                        yield _sse(vis_data)
+                        yield sse(vis_data)
                 except Exception:
                     pass
                 # Don't send a text preview for visualizations — the image IS the preview
@@ -176,10 +176,10 @@ async def stream_analyst_response(
 
             # For all other tools: send a brief activity preview
             preview = output_str[:120].replace("\n", " ")
-            yield _sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
+            yield sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
 
     yield "data: [DONE]\n\n"
 
 
-def _sse(payload: dict) -> str:
+def sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"

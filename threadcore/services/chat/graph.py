@@ -39,9 +39,6 @@ def intent_route(state: ChatState):
 
 @traceable(name="Build Chatbot Graph")
 def build_chatbot(checkpointer):
-    print("===========================")
-    print("Building LangGraph chatbot")
-    print("===========================")
 
     graph = StateGraph(ChatState)
 
@@ -98,12 +95,6 @@ def build_chatbot(checkpointer):
     compiled = graph.compile(
         checkpointer=checkpointer,
         interrupt_before=["tools"],
-    )
-
-    print("Compiled graph nodes:", list(compiled.nodes))
-    print(
-        "Compiled graph node types:",
-        {name: type(node).__name__ for name, node in compiled.nodes.items()},
     )
 
     return compiled

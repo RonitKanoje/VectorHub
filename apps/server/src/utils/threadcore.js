@@ -25,12 +25,12 @@ export async function forwardToThreadCore(req, res, endpoint, options = {}) {
 
     return res.status(response.status).json(data);
   } catch (error) {
-    console.error("ThreadCore proxy failed:", error);
-    console.error("ThreadCore proxy failed:");
-    console.error("Endpoint:", endpoint);
-    console.error("URL:", `${config.THREADCORE_URL}${endpoint}`);
-    console.error("Error:", error);
-    console.error("Cause:", error.cause);
+    console.error("ThreadCore proxy failed", {
+      endpoint,
+      url: `${config.THREADCORE_URL}${endpoint}`,
+      error,
+      cause: error.cause,
+    });
     return res.status(502).json({
       success: false,
       message: "FastAPI service is unavailable",
@@ -68,7 +68,7 @@ function formatThreadCoreError(data) {
   } else if (typeof data?.detail === "string") {
     return data.detail;
   } else {
-    return "ThreadCore request failed";
+    return "AI request failed";
   }
 }
 

@@ -49,7 +49,6 @@ async def process_dataset(
         x_user_id
     )
 
-    print("THREAD ID =", request.thread_id)
 
 
     if thread is None:

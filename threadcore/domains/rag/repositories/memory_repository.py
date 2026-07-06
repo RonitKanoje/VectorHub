@@ -4,10 +4,8 @@ import traceback
 import uuid
 from datetime import datetime
 from typing import Optional
-
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-
 from threadcore.domains.rag.models import (
     MemoryConflictDB,
     MemoryEventDB,
@@ -58,22 +56,9 @@ def create_memory(
     memory_type: str = "general",
 ):
     """Create a topic document and the atomic event that led to it."""
-    print("====================================================")
-    print("ENTERED create_memory")
-    print("ENTERED repository")
-    print("====================================================")
-    print("Session object:", db)
-    print("Transaction active?", db.in_transaction())
-    print("Connection:", db.connection())
-    print("Transaction active after connection?", db.in_transaction())
-    print("user_id:", user_id)
-    print("memory_text:", memory_text)
 
     cleaned = _normalize_text(memory_text)
-    print("Normalized memory_text:", cleaned)
     if not cleaned:
-        print("EARLY RETURN: cleaned memory_text is empty before db.add()")
-        print("Empty cleaned text; returning before insertion")
         return None
 
     topic = (
@@ -85,13 +70,12 @@ def create_memory(
         .order_by(MemoryTopicDB.updated_at.desc())
         .all()
     )
-    print("Candidate topics for matching:", [(candidate.id, candidate.summary) for candidate in topic])
 
     best_match = None
     best_score = 0.0
     for candidate in topic:
         score = _token_overlap(candidate.summary, cleaned)
-        print("Topic matching score", candidate.id, score, "for", candidate.summary)
+            
         if score > best_score and score >= 0.35:
             best_match = candidate
             best_score = score
@@ -105,20 +89,15 @@ def create_memory(
             confidence_score=80,
             metadata_json=json.dumps({"source": "initial_extraction"}),
         )
-        print("Creating MemoryTopic:", topic_obj)
-        print("db.add(MemoryTopic)")
         db.add(topic_obj)
-        print("db.flush(MemoryTopic)")
         db.flush()
         topic_id = topic_obj.id
-        print("Created MemoryTopic id:", topic_id)
     else:
         best_match.summary = f"{best_match.summary} | {cleaned}"
         best_match.updated_at = datetime.utcnow()
         best_match.evidence_count = (best_match.evidence_count or 0) + 1
         best_match.summary_version = (best_match.summary_version or 1) + 1
         topic_id = best_match.id
-        print("Updating existing MemoryTopic:", best_match.id)
 
     event = MemoryEventDB(
         user_id=user_id,
@@ -129,12 +108,9 @@ def create_memory(
         status="consolidated",
         payload_json=json.dumps({"memory_type": memory_type}),
     )
-    print("Creating MemoryEvent:", event)
-    print("db.add(MemoryEvent)")
     db.add(event)
-    print("db.flush(MemoryEvent)")
     db.flush()
-    print("Created MemoryEvent id:", event.id)
+    return event
 
     evidence = MemoryTopicEvidenceDB(
         topic_id=topic_id,
@@ -143,8 +119,6 @@ def create_memory(
         source_kind="extraction",
         evidence_excerpt=cleaned,
     )
-    print("Creating MemoryTopicEvidence:", evidence)
-    print("db.add(MemoryTopicEvidence)")
     db.add(evidence)
 
     version = MemoryTopicVersionDB(
@@ -154,35 +128,21 @@ def create_memory(
         change_reason="fact_ingested",
         created_by="memory_service",
     )
-    print("Creating MemoryTopicVersion:", version)
-    print("db.add(MemoryTopicVersion)")
     db.add(version)
 
     try:
-        print("ENTERED db.commit")
         db.commit()
-        print("Commit successful")
         topic_count = db.query(func.count(MemoryTopicDB.id)).scalar()
         event_count = db.query(func.count(MemoryEventDB.id)).scalar()
-        print("SELECT COUNT(*) FROM memory_topics ->", topic_count)
-        print("SELECT COUNT(*) FROM memory_events ->", event_count)
         db.refresh(event)
         if best_match is None:
             db.refresh(topic_obj)
-            print("Rows inserted: topic and event and evidence and version")
-            print("Database row user_id:", topic_obj.user_id)
-            print("EXIT create_memory")
             return topic_obj
         db.refresh(best_match)
-        print("Rows inserted: event and evidence and version")
-        print("Database row user_id:", best_match.user_id)
-        print("EXIT create_memory")
         return best_match
     except Exception:
-        print("Exception during commit in create_memory()")
         traceback.print_exc()
         db.rollback()
-        print("Rollback complete in create_memory")
         raise
 
 

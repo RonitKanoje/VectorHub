@@ -20,14 +20,9 @@ class GeminiPersonalMemoryLLM:
         self.model_name = model_name or settings.gemini_memory_model
 
     def invoke(self, messages: Sequence[Any]) -> PersonalMemoryDecision:
-        print("====================================================")
-        print("ENTERED GeminiPersonalMemoryLLM.invoke")
-        print("====================================================")
         prompt = self._build_prompt(messages)
         logger.info("=========================\nMemory Extraction\n=========================")
         logger.info("User message:\n%s", prompt)
-        print("Gemini memory extraction prompt:")
-        print(prompt)
 
         config = types.GenerateContentConfig(
             temperature=0.0,
@@ -57,20 +52,13 @@ class GeminiPersonalMemoryLLM:
 
         raw_text = getattr(response, "text", None)
         logger.info("Gemini raw response:\n%s", raw_text)
-        print("Raw Gemini API response:")
-        print(raw_text)
+        
 
         parsed = self._parse_response(raw_text)
         logger.info("Parsed PersonalMemoryDecision:\n%s", parsed)
         logger.info("should_store: %s", parsed.should_store)
         logger.info("facts: %s", parsed.facts)
         logger.info("should_retrieve: %s", parsed.should_retrieve)
-        print("Parsed Pydantic model:")
-        print(parsed)
-        print("should_store:", parsed.should_store)
-        print("facts:", parsed.facts)
-        print("should_retrieve:", parsed.should_retrieve)
-        print("EXIT GeminiPersonalMemoryLLM.invoke")
         return parsed
 
     def _build_prompt(self, messages: Sequence[Any]) -> str:
