@@ -22,7 +22,7 @@ router = APIRouter(tags=["chat"])
 
 def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
     """Get current user ID from header"""
-    return get_current_user(x_user_id=x_user_id) ## it will return the current user 
+    return get_current_user(x_user_id=x_user_id)
 
 
 @router.post("/chat")

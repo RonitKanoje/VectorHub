@@ -27,7 +27,7 @@ class ChatMessageRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     @field_validator("content", "thread_id")
-    @classmethod
+    @classmethod # pydantic v2 requires classmethod for validators which verify multiple fields before object creation
     def required_string(cls, value: str) -> str:
         value = value.strip()
         if not value:

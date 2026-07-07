@@ -29,4 +29,4 @@ def get_tool_ready_llm(tools):
 
 
 # Configuration constants
-CONFIDENCE_THRESHOLD = 0.2
+CONFIDENCE_THRESHOLD = 0.8

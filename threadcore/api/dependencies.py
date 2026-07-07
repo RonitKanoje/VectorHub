@@ -4,7 +4,7 @@ from threadcore.services.rag.thread_service import get_user_thread as get_thread
 
 
 def get_chatbot(request: Request):
-    return request.app.state.chatbot
+    return request.app.state.chatbot  # reusing the same chatbot instance for all requests, as it is stateless and thread-safe
 
 
 def get_current_user(
