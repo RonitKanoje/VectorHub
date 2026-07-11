@@ -1,36 +1,35 @@
 """Node functions for the conversation graph."""
 
 import traceback
-from unittest import result
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langsmith import traceable
 
 from threadcore.services.chat.llm_config import (
     CONFIDENCE_THRESHOLD,
-    get_tool_ready_llm,
+    llm,
     personal_memory_llm,
     route_llm,
-    structured_llm,
 )
 from threadcore.services.chat.prompts import (
     personal_memory_prompt,
     prompt,
-    prompt1,
     simple_chat_prompt,
 )
-from threadcore.services.chat.schemas import ChatState
+from threadcore.services.chat.schemas import ChatState, StructuredAnswer
 from threadcore.services.chat.tools_config import tools
 from threadcore.services.ingestion.pipeline import retrieve_answer
-from threadcore.services.chat.llm_config import llm
 from threadcore.services.rag.memory_service import (
     store_user_memories,
-     retrieve_user_memories
+    retrieve_user_memories,
 )
 
+# unified_llm is the single LLM instance used by chat_node.
+# It has the standard tools AND StructuredAnswer bound as a tool, so the model
+# can either call StructuredAnswer (confident direct reply) or an external
+# tool (search / wiki) in a single invocation — no second LLM call needed.
+unified_llm = llm.bind_tools(tools + [StructuredAnswer])
 
-# Tool-ready LLM
-tool_ready_llm = get_tool_ready_llm(tools)
 
 @traceable
 def chat_node(state: ChatState):
@@ -153,20 +152,29 @@ TIMING METADATA
         print(m.content)
         print("-" * 80)
 
-    result = structured_llm.invoke(messages)
+    response = unified_llm.invoke(messages)
 
-    if result.confidence < CONFIDENCE_THRESHOLD:
-
-        tool_response = tool_ready_llm.invoke(messages)
-
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        for tc in response.tool_calls:
+            if tc["name"] == "StructuredAnswer":
+                args = tc.get("args", {})
+                answer_text = args.get("answer", "")
+                confidence_score = args.get("confidence", 1.0)
+                return {
+                    "messages": [AIMessage(content=answer_text)],
+                    "confidence": confidence_score,
+                }
+        
+        # Uses an external tool (e.g. DuckDuckGo), implicitly means low confidence
         return {
-            "messages": [tool_response],
-            "confidence": result.confidence,
+            "messages": [response],
+            "confidence": 0.0,
         }
 
+    # Answered directly via text without calling any tools, implicitly high confidence
     return {
-        "messages": [AIMessage(content=result.answer)],
-        "confidence": result.confidence,
+        "messages": [response],
+        "confidence": 1.0,
     }
 
 

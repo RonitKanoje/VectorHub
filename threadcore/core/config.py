@@ -20,18 +20,12 @@ class Settings(BaseSettings):
 
     groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
     gemini_api_key: str | None = Field(default=None, validation_alias="GEMINI_API_KEY")
-    gemini_memory_model: str = Field(default="gemini-2.5-flash-lite", validation_alias="GEMINI_MEMORY_MODEL")
+    gemini_memory_model: str = Field(default="gemini-2.0-flash-lite", validation_alias="GEMINI_MEMORY_MODEL")
     gemini_embedding_model: str = Field(default="gemini-embedding-001", validation_alias="GEMINI_EMBEDDING_MODEL")
 
     qdrant_url: str = Field(default="http://localhost:6333", validation_alias="QDRANT_URL")
     redis_host: str = Field(default="127.0.0.1", validation_alias="REDIS_HOST")
     redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
-
-    # Ollama
-    ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
-    
-    ollama_chat_model: str = Field(default="llama3.2:latest", validation_alias="OLLAMA_CHAT_MODEL")
-    ollama_embedding_model: str = Field(default="bge-m3:latest", validation_alias="OLLAMA_EMBEDDING_MODEL")
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

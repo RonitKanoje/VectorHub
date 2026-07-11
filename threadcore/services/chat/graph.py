@@ -120,7 +120,14 @@ def normalize_content(content):
 
 
 async def load_conversation(chatbot, thread_id: str):
-    """Load conversation history from checkpointed state."""
+    """Load conversation history from checkpointed state.
+
+    When the graph is paused at interrupt_before=['tools'], state.next contains
+    ('tools',) and the last AIMessage has non-empty tool_calls but empty content.
+    We detect this directly from the checkpoint — the canonical LangGraph source
+    of truth — and annotate that message with requires_approval and the tool name,
+    so the frontend can restore the approval UI after a page refresh.
+    """
 
     state = await chatbot.aget_state(
         config={"configurable": {"thread_id": thread_id}}
@@ -130,9 +137,34 @@ async def load_conversation(chatbot, thread_id: str):
         return []
 
     messages = state.values.get("messages", [])
+
+    # Detect whether the graph is currently paused waiting for tool approval.
+    # state.next is a tuple of node names the graph wants to execute next.
+    is_awaiting_tool_approval = (
+        state.next is not None and "tools" in state.next
+    )
+
+    # If paused, identify the specific tool that is pending by inspecting the
+    # last AIMessage with tool_calls in the checkpoint. This is the message
+    # chat_node returned before the interrupt fired.
+    pending_tool_name: str | None = None
+    pending_message_index: int | None = None
+
+    if is_awaiting_tool_approval:
+        for idx in range(len(messages) - 1, -1, -1):
+            msg = messages[idx]
+            if (
+                msg.type == "ai"
+                and hasattr(msg, "tool_calls")
+                and msg.tool_calls
+            ):
+                pending_tool_name = msg.tool_calls[0].get("name") or msg.tool_calls[0].get("function", {}).get("name")
+                pending_message_index = idx
+                break
+
     conversation = []
 
-    for message in messages:
+    for idx, message in enumerate(messages):
         if message.type == "human":
             conversation.append(
                 {
@@ -142,11 +174,22 @@ async def load_conversation(chatbot, thread_id: str):
             )
 
         elif message.type == "ai":
-            conversation.append(
-                {
-                    "role": "assistant",
-                    "content": normalize_content(message.content),
-                }
-            )
+            entry: dict = {
+                "role": "assistant",
+                "content": normalize_content(message.content),
+            }
+
+            # Annotate the specific interrupted message with approval metadata.
+            # The frontend already knows how to render the approval card when
+            # requires_approval=True is present — no placeholder text is needed.
+            if (
+                is_awaiting_tool_approval
+                and idx == pending_message_index
+                and pending_tool_name
+            ):
+                entry["requires_approval"] = True
+                entry["tool"] = pending_tool_name
+
+            conversation.append(entry)
 
     return conversation

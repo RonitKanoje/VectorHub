@@ -106,22 +106,70 @@ export function useConversation(): UseConversationReturn {
 
       setIsSending(true);
 
-      const userId = uniqueId("user");
-      const assistantId = uniqueId("asst");
+      // -----------------------------------------------------------------
+      // Message ID resolution.
+      //
+      // Normal send: allocate fresh ids for a new user + assistant pair.
+      //
+      // Tool approval: we must NOT add a new user message ("yes") to the
+      // visible conversation — it is an internal signal to the graph, not
+      // a human turn. We also must NOT create a new assistant bubble.
+      // Instead we find the existing assistant message that currently holds
+      // the approval card (requires_approval === true) and stream the final
+      // answer directly into it, replacing the approval UI in-place.
+      // -----------------------------------------------------------------
+      let assistantId: string;
 
-      updateMessages((prev) => {
-        const next = [
-          ...prev,
-          { id: userId, role: "user" as const, content },
-          {
-            id: assistantId,
-            role: "assistant" as const,
-            content: "",
-            pending: true,  
-          },
-        ];
-        return next;
-      });
+      if (isApproval) {
+        // Find the last assistant message that is awaiting approval.
+        const approvalMsg = [...messagesRef.current]
+          .reverse()
+          .find((m) => m.role === "assistant" && m.requires_approval);
+
+        if (approvalMsg) {
+          assistantId = approvalMsg.id;
+          // Clear approval state and set the bubble back to pending while
+          // we wait for the resumed graph to produce its answer.
+          updateMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId
+                ? {
+                    ...msg,
+                    requires_approval: false,
+                    tool: undefined,
+                    content: "",
+                    pending: true,
+                  }
+                : msg,
+            ),
+          );
+        } else {
+          // Fallback: no approval message found, create a fresh assistant bubble.
+          assistantId = uniqueId("asst");
+          updateMessages((prev) => [
+            ...prev,
+            { id: assistantId, role: "assistant" as const, content: "", pending: true },
+          ]);
+        }
+      } else {
+        // Normal user message: push visible user turn + blank assistant bubble.
+        const userId = uniqueId("user");
+        assistantId = uniqueId("asst");
+
+        updateMessages((prev) => {
+          const next = [
+            ...prev,
+            { id: userId, role: "user" as const, content },
+            {
+              id: assistantId,
+              role: "assistant" as const,
+              content: "",
+              pending: true,
+            },
+          ];
+          return next;
+        });
+      }
 
       try {
         const token = store.getState().auth.accessToken;
@@ -155,7 +203,7 @@ export function useConversation(): UseConversationReturn {
 
         setActiveStatus((status) => status || "chat");
 
-        if (isFirstUserMessage) {
+        if (isFirstUserMessage && !isApproval) {
           api
             .post<{ title: string }>("/api/ai/nameChat", {
               message: content,
@@ -246,6 +294,7 @@ export function useConversation(): UseConversationReturn {
     },
     [updateMessages],
   );
+
 
   return {
     messages,

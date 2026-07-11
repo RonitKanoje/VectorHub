@@ -33,7 +33,7 @@ from typing import Any
 
 import pandas as pd
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langsmith import traceable
 
 from threadcore.core.config import settings
@@ -46,9 +46,8 @@ from threadcore.services.analyst.tools import (
 
 # LLMs 
 
-_llm = ChatOllama(
-    model=settings.ollama_chat_model,
-    base_url=settings.ollama_base_url,
+_llm = ChatGoogleGenerativeAI(
+    model=settings.gemini_memory_model,
     temperature=0.2,
 )
 

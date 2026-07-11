@@ -1,32 +1,21 @@
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from threadcore.core.config import settings
 from threadcore.services.chat.gemini_memory_client import GeminiPersonalMemoryLLM
-from threadcore.services.chat.schemas import (
-    PersonalMemoryDecision,
-    RouteDecision,
-    StructuredAnswer,
-)
+from threadcore.services.chat.schemas import RouteDecision
 
-# Base LLM model
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=settings.gemini_memory_model,
     temperature=0,
 )
 
-
-# Structured output variants
-structured_llm = llm.with_structured_output(StructuredAnswer)
+# Structured-output wrappers — created once and reused across all nodes.
 route_llm = llm.with_structured_output(RouteDecision)
+
+
+# Dedicated Gemini client for personal-memory extraction.
 personal_memory_llm = GeminiPersonalMemoryLLM()
-
-# Tool-enabled variant
-def get_tool_ready_llm(tools):
-    """Get LLM with tools bound."""
-    return llm.bind_tools(tools)
-
 
 # Configuration constants
 CONFIDENCE_THRESHOLD = 0.8

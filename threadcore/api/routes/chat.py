@@ -51,9 +51,9 @@ async def chat(
 
     async def event_generator():
         try:
-
+            
+            # If the message is a tool approval, handle it accordingly
             if getattr(chat_message, "is_tool_approval", False):
-
                 if chat_message.content.lower() == "yes":
 
                     stream = chatbot.astream_events(
@@ -61,7 +61,7 @@ async def chat(
                         config=config,
                         version="v2",
                     )
-                else:
+                else:  ## user denied tool usage 
                     state = await chatbot.aget_state(config)
 
                     if state.values and "messages" in state.values:
@@ -85,7 +85,7 @@ async def chat(
                                 as_node="tools",
                             )
 
-                    stream = chatbot.astream_events(
+                    stream = chatbot.astream_events( ## returns an asynchronous event generator.
                         None,
                         config=config,
                         version="v2",
@@ -106,19 +106,39 @@ async def chat(
             async for event in stream:
                 try:
                     event_type = event.get("event")
+                    node_name = event.get("name")
+                
+                    langgraph_node = event.get("metadata", {}).get("langgraph_node", "")
+
+                    data = event.get("data")
 
                     if event_type == "on_chat_model_stream":
-                        chunk = event["data"]["chunk"].content
+                        continue
 
-                        if chunk and isinstance(chunk, str):
-                            yield (
-                                f"data: "
-                                f"{json.dumps({'type':'chunk','content':chunk})}\n\n"
-                            )
+                    if event_type == "on_chain_stream" and node_name == "chat_node":
+                        continue
 
-                except Exception as e:   
+                    if event_type == "on_chain_end" and node_name == "chat_node":
+                        output = event.get("data", {}).get("output", {})
+                        if isinstance(output, dict) and "messages" in output:
+                            msgs = output["messages"]
+                            if msgs:
+                                last_msg = msgs[-1]
+                                if (
+                                    hasattr(last_msg, "content")
+                                    and isinstance(last_msg.content, str)
+                                    and last_msg.content
+                                    and not getattr(last_msg, "tool_calls", None)
+                                ):
+                                    yield (
+                                        f"data: "
+                                        f"{json.dumps({'type':'chunk','content':last_msg.content})}\n\n"
+                                    )
+
+                except Exception as e:
                     traceback.print_exc()
                     raise
+
 
             state = await chatbot.aget_state(config)
 

@@ -52,7 +52,6 @@ class GeminiPersonalMemoryLLM:
 
         raw_text = getattr(response, "text", None)
         logger.info("Gemini raw response:\n%s", raw_text)
-        
 
         parsed = self._parse_response(raw_text)
         logger.info("Parsed PersonalMemoryDecision:\n%s", parsed)
@@ -83,3 +82,4 @@ class GeminiPersonalMemoryLLM:
             return PersonalMemoryDecision.model_validate(payload)
         except ValidationError as exc:
             raise ValueError(f"Gemini memory extraction returned invalid PersonalMemoryDecision: {payload}") from exc
+
