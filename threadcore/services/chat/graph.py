@@ -99,6 +99,25 @@ def build_chatbot(checkpointer):
 
     return compiled
 
+def normalize_content(content):
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+
+            elif isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+
+        return "".join(parts)
+
+    return str(content)
+
 
 async def load_conversation(chatbot, thread_id: str):
     """Load conversation history from checkpointed state."""
@@ -118,7 +137,7 @@ async def load_conversation(chatbot, thread_id: str):
             conversation.append(
                 {
                     "role": "user",
-                    "content": message.content,
+                    "content": normalize_content(message.content),
                 }
             )
 
@@ -126,7 +145,7 @@ async def load_conversation(chatbot, thread_id: str):
             conversation.append(
                 {
                     "role": "assistant",
-                    "content": message.content,
+                    "content": normalize_content(message.content),
                 }
             )
 

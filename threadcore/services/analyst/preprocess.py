@@ -82,7 +82,7 @@ def run_preprocessing(file_path: str) -> tuple[pd.DataFrame, str]:
     Returns (cleaned_df, quality_report_json_string).
     """
     if file_path.endswith(".csv"):
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, encoding="latin1")
     else:
         df = pd.read_excel(file_path)
 

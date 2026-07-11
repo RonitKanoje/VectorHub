@@ -29,7 +29,7 @@ def _load_df() -> pd.DataFrame:
     if not _current_dataset_path or not os.path.exists(_current_dataset_path):
         raise ValueError("No active dataset. Upload a CSV/Excel file first.")
     return (
-        pd.read_csv(_current_dataset_path)
+        pd.read_csv(_current_dataset_path, encoding="latin1")
         if _current_dataset_path.endswith(".csv")
         else pd.read_excel(_current_dataset_path)
     )

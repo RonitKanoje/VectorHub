@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from langchain_core.messages import HumanMessage
 from sqlalchemy.orm import Session
-
 from threadcore.api.dependencies import ensure_thread_access, get_chatbot, get_current_user
 from threadcore.api.schemas import ChatMessageRequest, ChatNameRequest, ThreadNameFromUploadRequest
 from threadcore.services.rag.thread_service import (

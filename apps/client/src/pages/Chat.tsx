@@ -131,6 +131,21 @@ const Chat = () => {
     );
   };
 
+  const handleApproval = useCallback(
+    (answer: "yes" | "no") => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          "requires_approval" in msg && msg.requires_approval
+            ? { ...msg, requires_approval: false, tool: undefined }
+            : msg,
+        ),
+      );
+      void handleSendMessage(answer, true);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeThreadId, getEnsuredThread, setThreads, handleSend, setMessages],
+  );
+
   const handleProcessMediaClick = async (payload: MediaPayload) => {
     await handleProcessMedia(
       payload,
@@ -210,7 +225,7 @@ const Chat = () => {
         >
           {showCenteredEmptyLayout && <EmptyState />}
           {!showCenteredEmptyLayout && (
-            <MessageList messages={messages}  />
+            <MessageList messages={messages} onApprove={handleApproval} />
           )}
           <div
             className={`w-full${showCenteredEmptyLayout ? " max-w-4xl" : " shrink-0"}`}

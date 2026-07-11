@@ -155,12 +155,6 @@ TIMING METADATA
 
     result = structured_llm.invoke(messages)
 
-    print("=" * 80)
-    print("CHAT NODE RESULT")
-    print(result)
-    print(type(result))
-    print("=" * 80)
-
     if result.confidence < CONFIDENCE_THRESHOLD:
 
         tool_response = tool_ready_llm.invoke(messages)

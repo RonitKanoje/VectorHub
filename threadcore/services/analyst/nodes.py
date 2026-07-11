@@ -149,7 +149,7 @@ def preprocessor_agent(state: AnalystState) -> dict:
 def eda_agent(state: AnalystState) -> dict:
     """Build df_schema + EDA report. Setting schema_ready=True unlocks the agent."""
     path = state["dataset_path"]
-    df = pd.read_csv(path)
+    df = pd.read_csv(path , encoding="latin1") if path.endswith(".csv") else pd.read_excel(path)
 
     schema = _build_df_schema(df)
 

@@ -32,7 +32,7 @@ def profile_dataset(file_path: str) -> dict:
         missing_pct  (dict col → % missing, only cols with > 0 missing)
     """
     if file_path.endswith(".csv"):
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path , encoding="latin1")
     elif file_path.endswith((".xls", ".xlsx")):
         df = pd.read_excel(file_path)
     else:

@@ -5,9 +5,10 @@ import type { ChatMessage, AnalystMessage } from "../types";
 interface MessageListProps {
   messages: Array<ChatMessage | AnalystMessage>;
   isAnalystMode?: boolean;
+  onApprove?: (answer: "yes" | "no") => void;
 }
 
-const MessageList = ({ messages, isAnalystMode = false }: MessageListProps) => {
+const MessageList = ({ messages, isAnalystMode = false, onApprove }: MessageListProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ const MessageList = ({ messages, isAnalystMode = false }: MessageListProps) => {
             key={msg.id ?? `msg-${idx}`}
             message={msg}
             isAnalystMode={isAnalystMode}
+            onApprove={onApprove}
           />
         ))}
         <div ref={scrollRef} />

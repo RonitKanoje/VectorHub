@@ -1,10 +1,10 @@
 import asyncio
 import sys
-
 import psycopg
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from threadcore.core.config import settings
+from psycopg_pool import AsyncConnectionPool
 
 
 def configure_asyncio_for_windows() -> None:
@@ -20,9 +20,6 @@ def configure_asyncio_for_windows() -> None:
 
 
 configure_asyncio_for_windows()
-
-from psycopg_pool import AsyncConnectionPool
-
 
 engine = create_engine(settings.database_url) ## connects Python with PostgreSQL
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) ## changing after db.commit()

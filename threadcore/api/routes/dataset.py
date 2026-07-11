@@ -24,41 +24,61 @@ class ProcessDatasetRequest(BaseModel):
     document_name: str | None = None
 
 
+import os
+import traceback
+from fastapi import Depends, Header, HTTPException
+
 @router.post("/process_dataset")
 async def process_dataset(
     request: ProcessDatasetRequest,
     x_user_id: str = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    print("\n========== PROCESS DATASET START ==========")
+    print(f"User ID       : {x_user_id}")
+    print(f"Thread ID     : {request.thread_id}")
+    print(f"Document Name : {request.document_name}")
+    print(f"File Path     : {request.path}")
+
     if not x_user_id:
+        print("ERROR: Missing X-User-Id header")
         raise HTTPException(
             status_code=401,
             detail="X-User-Id header missing"
         )
 
-    if not os.path.exists(request.path):
+    print(f"Path exists   : {os.path.exists(request.path)}")
+
+    if os.path.exists(request.path):
+        print(f"File size     : {os.path.getsize(request.path)} bytes")
+        print(f"Extension     : {os.path.splitext(request.path)[1]}")
+    else:
         raise HTTPException(
             status_code=400,
             detail="File path does not exist"
         )
 
-    # Ensure thread exists before dataset insert
+    print("Checking thread...")
+
     thread = get_user_thread(
         db,
         request.thread_id,
-        x_user_id
+        x_user_id,
     )
 
-
+    print(f"Thread found  : {thread is not None}")
 
     if thread is None:
+        print("Creating new analyst thread...")
         save_or_update_thread(
             db,
             request.thread_id,
             "New Analyst Chat",
             x_user_id,
-            mode="analyst"
+            mode="analyst",
         )
+
+    print("Calling process_and_save_dataset()...")
 
     try:
         dataset, df, report_json = process_and_save_dataset(
@@ -66,9 +86,21 @@ async def process_dataset(
             file_path=request.path,
             thread_id=request.thread_id,
             user_id=x_user_id,
-            document_name=request.document_name
+            document_name=request.document_name,
         )
+
+        print("Dataset preprocessing completed successfully.")
+        print(f"Rows          : {len(df)}")
+        print(f"Columns       : {len(df.columns)}")
+        print("========== PROCESS DATASET SUCCESS ==========\n")
+
     except Exception as e:
+        print("\n========== PROCESS DATASET FAILED ==========")
+        print("Exception Type :", type(e).__name__)
+        print("Exception      :", str(e))
+        traceback.print_exc()
+        print("===========================================\n")
+
         raise HTTPException(
             status_code=500,
             detail=f"Failed to preprocess dataset: {str(e)}"
@@ -78,7 +110,7 @@ async def process_dataset(
         "status": "success",
         "message": "Dataset preprocessed and stored",
         "rows": len(df),
-        "cols": len(df.columns)
+        "cols": len(df.columns),
     }
 
 
