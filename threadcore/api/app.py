@@ -15,6 +15,7 @@ from threadcore.infrastructure.db.models import init_db
 from threadcore.services.chat.graph import build_chatbot
 from threadcore.services.analyst.graph import build_analyst_app
 from threadcore.api.routes.dataset import router as dataset_router
+from threadcore.api.routes.analyst import router as analyst_router
 
 configure_asyncio_for_windows()
 
@@ -61,4 +62,5 @@ async def health_check():
 app.include_router(chat_router)
 app.include_router(ingestion_router)
 app.include_router(dataset_router)
+app.include_router(analyst_router)
 app.include_router(threads_router)

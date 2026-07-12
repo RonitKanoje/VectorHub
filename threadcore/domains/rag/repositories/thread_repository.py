@@ -3,7 +3,7 @@ from threadcore.domains.rag.models import ThreadDB
 
 
 def get_threads_for_user(db: Session, user_id: str, mode: str = "chat"):
-    """Get all threads for a MongoDB user (user_id is MongoDB ObjectId as string) filtered by mode"""
+    
     return (
         db.query(ThreadDB)
         .filter(ThreadDB.user_id == user_id, ThreadDB.mode == mode)
@@ -13,7 +13,7 @@ def get_threads_for_user(db: Session, user_id: str, mode: str = "chat"):
 
 
 def get_thread_for_user(db: Session, thread_id: str, user_id: str) -> ThreadDB | None:
-    """Verify user owns the thread (user_id is MongoDB ObjectId as string)"""
+
     return (
         db.query(ThreadDB)
         .filter(ThreadDB.thread_id == thread_id, ThreadDB.user_id == user_id)

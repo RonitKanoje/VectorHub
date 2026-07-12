@@ -5,7 +5,7 @@ from typing import Any
 
 
 def coerce_types(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
-    """Try to cast object columns to numeric. Returns updated df + coercion log."""
+    
     log = []
     for col in df.select_dtypes(include="object").columns:
         converted = pd.to_numeric(df[col], errors="coerce")
@@ -21,7 +21,7 @@ def coerce_types(df: pd.DataFrame) -> tuple[pd.DataFrame, list[dict]]:
 
 
 def analyse_missing(df: pd.DataFrame) -> list[dict]:
-    """Identify missing values and recommend imputation strategy."""
+   
     report = []
     for col in df.columns:
         n_missing = int(df[col].isna().sum())
@@ -51,7 +51,7 @@ def analyse_missing(df: pd.DataFrame) -> list[dict]:
 
 
 def detect_outliers(df: pd.DataFrame) -> list[dict]:
-    """IQR-based outlier detection for numeric columns."""
+    
     report = []
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     for col in numeric_cols:
@@ -77,10 +77,7 @@ def detect_outliers(df: pd.DataFrame) -> list[dict]:
 
 
 def run_preprocessing(file_path: str) -> tuple[pd.DataFrame, str]:
-    """
-    Full pipeline: load → coerce → missing → outliers.
-    Returns (cleaned_df, quality_report_json_string).
-    """
+  
     if file_path.endswith(".csv"):
         df = pd.read_csv(file_path, encoding="latin1")
     else:

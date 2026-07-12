@@ -12,7 +12,6 @@ import seaborn as sns
 from langchain_core.tools import tool
 
 
-# ── module-level dataset path (set once per request by the agent node) 
 
 _current_dataset_path: str | None = None
 _current_schema: dict | None = None
@@ -36,7 +35,7 @@ def _load_df() -> pd.DataFrame:
 
 
 def _validate_columns(*cols: str | None) -> list[str]:
-    """Return list of unknown column names (empty = all valid)."""
+    
     if _current_schema is None:
         return []
     known = set(_current_schema.get("columns", []))
@@ -45,13 +44,8 @@ def _validate_columns(*cols: str | None) -> list[str]:
 # Tool 1 — dataset_summary_tool
 @tool
 def dataset_summary_tool() -> str:
-    """
-    Returns the full statistical summary (describe), data types, null counts,
-    and the top-5 unique values for every categorical column.
-
-    Use this as the first tool call on any new question to ground your answer
-    in the real data before running queries or visualisations.
-    """
+    """Return a JSON summary of the active dataset, including shape, dtypes, null counts, and basic descriptive statistics."""
+   
     df = _load_df()
 
     summary = {
@@ -73,23 +67,8 @@ def dataset_summary_tool() -> str:
 # Tool 2 — pandas_query_tool
 @tool
 def pandas_query_tool(query: str) -> str:
-    """
-    Executes a pandas df.query() expression and returns the result as a
-    JSON-serialisable string.
-
-    Args:
-        query: A valid pandas query string, e.g. "age > 30 and salary < 60000".
-               Column names must match the dataset exactly (case-sensitive).
-
-    Returns:
-        The matching rows as a formatted string, or an error message.
-
-    Important: Only use column names that appear in the dataset schema you
-    were shown at the start of this turn.
-    """
-    # -- extract referenced column names from the query string ----------------
-    # Simple heuristic: split on operators/spaces and check known identifiers.
-    # This is not a full parser but catches most typos before hitting pandas.
+    """Execute a pandas query on the active dataset and return the first 100 rows as a string."""
+    
     bad_cols = []
     if _current_schema:
         known = set(_current_schema.get("columns", []))
@@ -122,22 +101,8 @@ def visualization_tool(
     title: Optional[str] = None,
     summary: Optional[str] = None,
 ) -> str:
-    """
-    Generates a chart and returns it as a base64-encoded PNG data-URI.
-
-    Args:
-        chart_type: One of 'bar', 'line', 'scatter', 'hist', 'box', 'heatmap'.
-        x_col:      Column name for the x-axis (required for all except heatmap).
-        y_col:      Column name for the y-axis (required for bar/line/scatter/box).
-        hue_col:    Optional column name to colour-encode categories.
-        title:      Optional chart title; auto-generated if omitted.
-        summary:    Optional concise summary of what the chart shows.
-
-    Returns:
-        JSON string containing the chart as base64 PNG, title, and summary.
-
-    Important: Only use column names that appear in the dataset schema.
-    """
+    """Generate a chart from the active dataset and return it as a base64-encoded PNG in JSON."""
+    
     bad = _validate_columns(x_col, y_col, hue_col)
     if bad:
         return (
@@ -195,25 +160,8 @@ def statistical_tool(
     group_by: Optional[str] = None,
     agg_func: Literal["mean", "sum", "count", "median", "std", "min", "max"] = "mean",
 ) -> str:
-    """
-    Structured statistical operations — safer than open-ended pandas chains.
-
-    Args:
-        operation:    One of:
-                      'correlation'    → numeric correlation matrix
-                      'groupby'        → group `column` by `group_by`, apply `agg_func`
-                      'value_counts'   → frequency distribution of `column`
-                      'describe_column'→ full describe() for a single `column`
-        column:       Target column name (required for groupby / value_counts /
-                      describe_column).
-        group_by:     Column to group by (required for groupby).
-        agg_func:     Aggregation function for groupby (default: 'mean').
-
-    Returns:
-        JSON-formatted string with the result.
-
-    Important: Only use column names that appear in the dataset schema.
-    """
+    """Perform a statistical operation on the active dataset and return the result as JSON."""
+    
     bad = _validate_columns(column, group_by)
     if bad:
         return (

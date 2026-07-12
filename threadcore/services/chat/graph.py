@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from langgraph.graph import START, END, StateGraph
 from langsmith import traceable
-
 from threadcore.services.chat.llm_config import CONFIDENCE_THRESHOLD
 from threadcore.services.chat.nodes import (
     chat_node,
@@ -17,7 +16,7 @@ load_dotenv()
 
 
 def confidence_tools_condition(state: ChatState):
-    """Determine if tools should be used based on confidence."""
+   
     confidence = state.get("confidence", 1.0)
 
     if confidence >= CONFIDENCE_THRESHOLD:
@@ -66,10 +65,6 @@ def build_chatbot(checkpointer):
     # Memory always runs in parallel
     graph.add_edge("intent", "personal_memory_node")
 
-    # Wait for BOTH:
-    #   rag/simple_chat
-    #        +
-    # personal_memory
     graph.add_edge(
         ["rag_node", "personal_memory_node"],
         "chat_node",
@@ -120,14 +115,6 @@ def normalize_content(content):
 
 
 async def load_conversation(chatbot, thread_id: str):
-    """Load conversation history from checkpointed state.
-
-    When the graph is paused at interrupt_before=['tools'], state.next contains
-    ('tools',) and the last AIMessage has non-empty tool_calls but empty content.
-    We detect this directly from the checkpoint — the canonical LangGraph source
-    of truth — and annotate that message with requires_approval and the tool name,
-    so the frontend can restore the approval UI after a page refresh.
-    """
 
     state = await chatbot.aget_state(
         config={"configurable": {"thread_id": thread_id}}
@@ -138,15 +125,10 @@ async def load_conversation(chatbot, thread_id: str):
 
     messages = state.values.get("messages", [])
 
-    # Detect whether the graph is currently paused waiting for tool approval.
-    # state.next is a tuple of node names the graph wants to execute next.
     is_awaiting_tool_approval = (
         state.next is not None and "tools" in state.next
     )
 
-    # If paused, identify the specific tool that is pending by inspecting the
-    # last AIMessage with tool_calls in the checkpoint. This is the message
-    # chat_node returned before the interrupt fired.
     pending_tool_name: str | None = None
     pending_message_index: int | None = None
 
@@ -179,9 +161,6 @@ async def load_conversation(chatbot, thread_id: str):
                 "content": normalize_content(message.content),
             }
 
-            # Annotate the specific interrupted message with approval metadata.
-            # The frontend already knows how to render the approval card when
-            # requires_approval=True is present — no placeholder text is needed.
             if (
                 is_awaiting_tool_approval
                 and idx == pending_message_index

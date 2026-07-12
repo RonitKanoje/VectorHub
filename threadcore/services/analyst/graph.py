@@ -6,120 +6,57 @@ from sqlalchemy.orm import Session
 from threadcore.domains.analyst.models import DatasetDB
 from threadcore.services.analyst.profiler import format_profile_message, profile_dataset
 from threadcore.services.analyst.state import AnalystState
-from threadcore.services.analyst.nodes import (
-    analyst_agent,
-    eda_agent,
-    preprocessor_agent,
-    synthesis_agent,
-)
-
+from threadcore.services.analyst.nodes import (analyst_agent,eda_agent,preprocessor_agent,synthesis_agent)
 
 # Router
 def route_after_start(state: AnalystState) -> str:
-    """
-    First question  → is_initialized is False  → run full pipeline.
-    Follow-up       → is_initialized is True   → jump straight to agent.
 
-    NOTE: schema_ready is checked *inside* analyst_agent as a secondary guard.
-    The router only decides whether to re-run the expensive preprocessing step.
-    """
     if state.get("is_initialized") and state.get("schema_ready"):
         return "analyst_agent"
     return "preprocessor_agent"
 
 # Graph definition
 
-workflow = StateGraph(AnalystState)
+def build_workflow() -> StateGraph:
 
-workflow.add_node("preprocessor_agent", preprocessor_agent)
-workflow.add_node("eda_agent", eda_agent)
-workflow.add_node("analyst_agent", analyst_agent)
-workflow.add_node("synthesis_agent", synthesis_agent)
+    workflow = StateGraph(AnalystState)
 
-workflow.add_conditional_edges(
-    START,
-    route_after_start,
-    {
-        "preprocessor_agent": "preprocessor_agent",
-        "analyst_agent": "analyst_agent",
-    },
-)
+    workflow.add_node("preprocessor_agent", preprocessor_agent)
+    workflow.add_node("eda_agent", eda_agent)
+    workflow.add_node("analyst_agent", analyst_agent)
+    workflow.add_node("synthesis_agent", synthesis_agent)
 
-workflow.add_edge("preprocessor_agent", "eda_agent")
-workflow.add_edge("eda_agent", "analyst_agent")
-workflow.add_edge("analyst_agent", "synthesis_agent")
-workflow.add_edge("synthesis_agent", END)
+    workflow.add_conditional_edges(
+        START,
+        route_after_start,
+        {
+            "preprocessor_agent": "preprocessor_agent",
+            "analyst_agent": "analyst_agent",
+        },
+    )
 
-# Compiled without checkpointer — injected at call-time via config
-analyst_app = workflow.compile()
+    workflow.add_edge("preprocessor_agent", "eda_agent")
+    workflow.add_edge("eda_agent", "analyst_agent")
+    workflow.add_edge("analyst_agent", "synthesis_agent")
+    workflow.add_edge("synthesis_agent", END)
+
+    return workflow
 
 
 def build_analyst_app(checkpointer=None):
-    """Re-compile with an optional async checkpointer (call once at startup)."""
+    workflow = build_workflow()
     return workflow.compile(checkpointer=checkpointer)
 
 
-# Streaming entry point
-
-# Progress labels shown to the user as SSE chunks
-PROGRESS_LABELS: dict[str, str] = {
-    "preprocessor_agent": "Preprocessing data…",
-    "eda_agent":          "Running exploratory analysis…",
-    "analyst_agent":      "Agent thinking and running tools…",
-    "synthesis_agent":    "Synthesising final answer…",
-}
+# Compiled without checkpointer — injected at call-time via config
+analyst_app = build_analyst_app()
 
 
-async def stream_analyst_response(
-    message: str,
-    thread_id: str,
-    user_id: str,
-    db: Session,
-    app=None,
-):
-    """
-    Async generator that yields SSE-formatted chunks.
-
-    Chunk types:
-      {"type": "profile",  "content": "markdown banner"}  — dataset accepted (pre-graph)
-      {"type": "progress", "content": "label text"}        — node started
-      {"type": "chunk",    "content": "token text"}        — LLM token
-      {"type": "tool",     "content": "tool name: result snippet"}
-      [DONE]
-    """
-    if app is None:
-        app = analyst_app
-
-    # resolve dataset 
-    dataset = (
-        db.query(DatasetDB)
-        .filter_by(thread_id=thread_id, user_id=user_id)
-        .order_by(DatasetDB.created_at.desc())
-        .first()
-    )
-
-    if not dataset:
-        yield sse({"type": "chunk", "content": "Please upload a CSV or Excel dataset first."})
-        yield "data: [DONE]\n\n"
-        return
-
-    # ── profile the file (cheap, sync, runs before the graph) ────────────────
-    # This gives us: row/col counts, missing-value summary, memory usage.
-    # On first question we emit it as a confirmation banner before the pipeline
-    # starts.  On follow-ups it is already in state (checkpointer) so we skip.
-
-    dataset_profile = {}
-    try:
-        dataset_profile = profile_dataset(dataset.file_path)
-        # profile_msg = format_profile_message(dataset_profile)
-        # yield sse({"type": "profile", "content": profile_msg})
-    except Exception as exc:
-        print(exc)
-
-    # initial state 
-    inputs: AnalystState = {
+def get_initial_analyst_state(message: str, dataset_path: str, dataset_profile: dict) -> AnalystState:
+    """Build the initial state dict for the analyst workflow."""
+    return {
         "messages":             [HumanMessage(content=message)],
-        "dataset_path":         dataset.file_path,
+        "dataset_path":         dataset_path,
         "dataset_profile":      dataset_profile,
         "df_json":              "",
         "preprocessing_report": "",
@@ -130,56 +67,55 @@ async def stream_analyst_response(
         "schema_ready":         False,
     }
 
-    config = {"configurable": {"thread_id": f"analyst-{user_id}-{thread_id}"}}
 
-    # event stream 
-    async for event in app.astream_events(inputs, config=config, version="v2"):
-        kind = event["event"]
-        node = event.get("metadata", {}).get("langgraph_node", "")
+async def load_analyst_conversation(analyst_app, thread_id: str, x_user_id: str) -> list[dict]:
+    """Load and parse the analyst conversation history from the checkpointer."""
+    config = {
+        "configurable": {
+            "thread_id": f"analyst-{x_user_id}-{thread_id}"
+        }
+    }
 
-        # Node entry → progress ping
-        if kind == "on_chain_start" and node in PROGRESS_LABELS:
-            yield sse({"type": "progress", "content": PROGRESS_LABELS[node]})
+    state = await analyst_app.aget_state(config)
 
-        # LLM streaming tokens (from analyst_agent or synthesis_agent)
-        # Guard: skip any chunk that looks like base64 image data — the LLM
-        # should never emit these, but this acts as a final safety net.
-        if kind == "on_chat_model_stream" and node in ("analyst_agent", "synthesis_agent"):
-            chunk_content = event["data"]["chunk"].content
-            if chunk_content and isinstance(chunk_content, str):
-                # Drop chunks that are part of a data URI (base64 leaking into text)
-                if "data:image" not in chunk_content and "base64," not in chunk_content:
-                    yield sse({"type": "chunk", "content": chunk_content})
+    if state is None or not state.values.get("messages"):
+        return []
 
-        # Tool execution completed inside analyst_agent
-        if kind == "on_tool_end" and node == "analyst_agent":
-            tool_name = event.get("name", "")
-            raw_output = event["data"].get("output", "")
+    messages = state.values["messages"]
+    conversation = []
 
-            # Normalise: LangGraph may wrap the return value in various ways
-            if hasattr(raw_output, "content"):
-                output_str = raw_output.content
-            elif isinstance(raw_output, str):
-                output_str = raw_output
-            else:
-                output_str = json.dumps(raw_output) if raw_output else ""
+    current_assistant: dict | None = None
 
+    def _flush(block: dict | None):
+        """Add the current assistant block to conversation if it has content."""
+        if block and (block["content"] or block["visualizations"]):
+            conversation.append(block)
+
+    for message in messages:
+        if message.type == "human":
+            _flush(current_assistant)
+            current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            conversation.append({"role": "user", "content": message.content})
+
+        elif message.type == "ai":
+            if current_assistant is None:
+                current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            # Only the final AIMessage (no tool_calls) carries the human-readable answer
+            if message.content and not message.tool_calls:
+                current_assistant["content"] += message.content
+
+        elif message.type == "tool":
+            if current_assistant is None:
+                current_assistant = {"role": "assistant", "content": "", "visualizations": []}
+            tool_name = getattr(message, "name", "") or ""
             if tool_name == "visualization_tool":
                 try:
-                    vis_data = json.loads(output_str)
+                    vis_data = json.loads(message.content)
                     if isinstance(vis_data, dict) and vis_data.get("type") == "visualization":
-                        yield sse(vis_data)
+                        current_assistant["visualizations"].append(vis_data)
                 except Exception:
                     pass
-                # Don't send a text preview for visualizations — the image IS the preview
-                continue
 
-            # For all other tools: send a brief activity preview
-            preview = output_str[:120].replace("\n", " ")
-            yield sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
+    _flush(current_assistant)
 
-    yield "data: [DONE]\n\n"
-
-
-def sse(payload: dict) -> str:
-    return f"data: {json.dumps(payload)}\n\n"
+    return conversation
