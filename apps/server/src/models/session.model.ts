@@ -1,9 +1,17 @@
-import mongoose from "mongoose";
+import mongoose, { Document, Model, Schema } from "mongoose";
 
-const sessionSchema = new mongoose.Schema(
+export interface ISession extends Document {
+  user: mongoose.Types.ObjectId;
+  refreshTokenHash: string;
+  ip: string;
+  userAgent: string;
+  revoked: boolean;
+}
+
+const sessionSchema = new Schema<ISession>(
   {
     user: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: [true, "User is required"],
     },
@@ -29,6 +37,9 @@ const sessionSchema = new mongoose.Schema(
   },
 );
 
-const Session = mongoose.model("Session", sessionSchema);
+const Session: Model<ISession> = mongoose.model<ISession>(
+  "Session",
+  sessionSchema,
+);
 
 export default Session;
