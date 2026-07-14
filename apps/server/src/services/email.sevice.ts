@@ -12,19 +12,25 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const verifyMailer = async () => {
+const verifyMailer = async (): Promise<void> => {
   try {
     await transporter.verify();
     console.log("Mail server is ready");
   } catch (error) {
-    console.error("Error connecting to mail server:", error.message);
+    const message = error instanceof Error ? error.message : error;
+    console.error("Error connecting to mail server:", message);
     // Don't throw here
   }
 };
 
 verifyMailer();
 
-export const sendEmail = async (to, subject, text, html) => {
+export const sendEmail = async (
+  to: string,
+  subject: string,
+  text: string,
+  html: string,
+): Promise<void> => {
   try {
     const info = await transporter.sendMail({
       from: `"Your Name" <${config.GOOGLE_USER}>`,
