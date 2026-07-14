@@ -1,27 +1,43 @@
+import { Request, Response } from "express";
 import UploadedFile from "../models/uploadedFile.model.js";
 import { localStorageProvider } from "../services/storage/localStorage.js";
 import { forwardToThreadCore } from "../utils/threadcore.js";
 import { normalizeYoutubeInput } from "../utils/youtube.js";
 
-export async function uploadMedia(req, res) {
+interface UploadBody {
+  thread_id?: string;
+  media?: string;
+  language?: string;
+  path?: string;
+  document_name?: string;
+}
+
+export async function uploadMedia(
+  req: Request<{}, {}, UploadBody>,
+  res: Response,
+) {
   try {
     const { file, userId } = req;
     const { thread_id, media, language } = req.body;
 
     if (!thread_id || !media) {
-      return res.status(400).json({ success: false, message: "thread_id and media are required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "thread_id and media are required" });
     }
 
-    let filePath;
+    let filePath: string;
 
     if (file) {
-      // 1. Save file via abstract storage provider
-      filePath = await localStorageProvider.saveFile(file, userId, thread_id);
+      filePath = await localStorageProvider.saveFile(
+        file,
+        userId || "anonymous",
+        thread_id,
+      );
 
-      // 2. Store metadata in DB
       await UploadedFile.create({
         user_id: userId,
-        thread_id: thread_id,
+        thread_id,
         original_filename: file.originalname,
         stored_filename: file.filename,
         file_path: filePath,
@@ -30,34 +46,39 @@ export async function uploadMedia(req, res) {
         status: "UPLOADED",
       });
     } else {
-      // Fallback for youtube or raw text payloads
-      filePath = media === "youtube" ? normalizeYoutubeInput(req.body.path) : req.body.path;
+      filePath =
+        media === "youtube"
+          ? normalizeYoutubeInput(req.body.path)
+          : req.body.path || "";
       if (!filePath) {
-        return res.status(400).json({ success: false, message: "path or file is required" });
+        return res
+          .status(400)
+          .json({ success: false, message: "path or file is required" });
       }
     }
 
-    // 3. Trigger FastAPI ingestion
     const payload = {
       media,
       thread_id,
       language: language || null,
       path: filePath,
-      document_name: file ? file.originalname : (req.body.document_name || null),
+      document_name: file ? file.originalname : req.body.document_name || null,
     };
 
-    const endpoint = media === "dataset" ? "/process_dataset" : "/process_media";
+    const endpoint =
+      media === "dataset" ? "/process_dataset" : "/process_media";
 
     return await forwardToThreadCore(req, res, endpoint, {
       method: "POST",
       body: payload,
     });
-
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to process upload";
     console.error("Upload error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to process upload",
+      message,
     });
   }
 }

@@ -2,7 +2,7 @@
 
 import traceback
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langsmith import traceable
 
 from threadcore.services.chat.llm_config import (
@@ -18,18 +18,16 @@ from threadcore.services.chat.prompts import (
 )
 from threadcore.services.chat.schemas import ChatState, StructuredAnswer
 from threadcore.services.chat.tools_config import tools
+from threadcore.services.context_builder import build_llm_context
 from threadcore.services.ingestion.pipeline import retrieve_answer
 from threadcore.services.rag.memory_service import (
     store_user_memories,
     retrieve_user_memories,
 )
 
-# unified_llm is the single LLM instance used by chat_node.
-# It has the standard tools AND StructuredAnswer bound as a tool, so the model
-# can either call StructuredAnswer (confident direct reply) or an external
-# tool (search / wiki) in a single invocation — no second LLM call needed.
-unified_llm = llm.bind_tools(tools + [StructuredAnswer])
+tool_llm = llm.bind_tools(tools)
 
+structured_llm = llm.with_structured_output(StructuredAnswer)
 
 @traceable
 def chat_node(state: ChatState):
@@ -53,142 +51,83 @@ def chat_node(state: ChatState):
 
     metadata_text = (
         "\n".join(
-            [
-                (
-                    f"- {item.get('type')}: start={item['start']}, duration={item['duration']}"
-                    if "start" in item and "duration" in item
-                    else (
-                        f"- {item.get('type')}: {item['location']}"
-                        if "location" in item
-                        else f"- {item.get('type')}"
-                    )
+            (
+                f"- {item.get('type')}: start={item['start']}, duration={item['duration']}"
+                if "start" in item and "duration" in item
+                else (
+                    f"- {item.get('type')}: {item['location']}"
+                    if "location" in item
+                    else f"- {item.get('type')}"
                 )
-                for item in meta
-            ]
+            )
+            for item in meta
         )
         if meta
         else "No timing metadata."
     )
 
-    # Previous conversation (without duplicating the latest user message)
-    history = state.get("messages", []).copy()
-
-    # Remove the last HumanMessage because we will send it again
-    if history and isinstance(history[-1], HumanMessage):
-        history = history[:-1]
-
-    messages = [
-
-        # Always include the system prompt
-        SystemMessage(
-            content="""
-You are VectorHub.
-
-You have access to THREE information sources.
-
-1. PERSONAL MEMORY
-- These are persistent facts about the user.
-- They are true unless contradicted.
-- Use them whenever the user asks about themselves.
-- Examples:
-  - What is my name?
-  - Where do I study?
-  - What are my goals?
-  - What projects am I building?
-
-2. RAG CONTEXT
-- This comes from uploaded documents.
-- Use it ONLY for questions about uploaded content.
-
-3. GENERAL KNOWLEDGE
-- If neither Personal Memory nor RAG contains the answer,
-  answer from your own knowledge.
-
-Priority:
-
-Personal Memory
-    ↓
-RAG Context
-    ↓
-General Knowledge
-
-Never ignore Personal Memory if it answers the user's question.
-"""
-        ),
-
+    system_messages = [
         SystemMessage(
             content=f"""
-=========================
-PERSONAL MEMORY
-=========================
+You are VectorHub.
 
+Available information sources (highest priority first):
+
+1. Personal Memory
+2. RAG Context
+3. General Knowledge
+
+Use the first source that sufficiently answers the user's question.
+
+## Personal Memory
 {personal_memory_text}
 
-=========================
-RAG CONTEXT
-=========================
-
+## RAG Context
 {context_text}
 
-=========================
-TIMING METADATA
-=========================
-
+## Timing Metadata
 {metadata_text}
 """
-        ),
-
-        *history,
-
-        HumanMessage(content=query),
+        )
     ]
+
+    history = state.get("messages", [])
+    is_after_tool = bool(history and isinstance(history[-1], ToolMessage))
+
+    base_messages = build_llm_context(
+        messages=history,
+        system_messages=system_messages,
+        current_user_message=None if is_after_tool else query,
+        conversation_summary=state.get("conversation_summary", ""),
+        important_facts=state.get("important_facts", []),
+    )
 
     print("=" * 80)
     print("FINAL PROMPT")
     print("=" * 80)
-
-    for m in messages:
+    for m in base_messages:
         print(type(m).__name__)
         print(m.content)
         print("-" * 80)
 
-    response = unified_llm.invoke(messages)
+    structured_answer = structured_llm.invoke(base_messages)
 
-    if hasattr(response, "tool_calls") and response.tool_calls:
-        for tc in response.tool_calls:
-            if tc["name"] == "StructuredAnswer":
-                args = tc.get("args", {})
-                answer_text = args.get("answer", "")
-                confidence_score = args.get("confidence", 1.0)
-                return {
-                    "messages": [AIMessage(content=answer_text)],
-                    "confidence": confidence_score,
-                }
-        
-        # Uses an external tool (e.g. DuckDuckGo), implicitly means low confidence
-        return {
-            "messages": [response],
-            "confidence": 0.0,
-        }
+    answer_text = structured_answer.answer
+    confidence_score = structured_answer.confidence
 
-    # Answered directly via text without calling any tools, implicitly high confidence
     return {
-        "messages": [response],
-        "confidence": 1.0,
+        "messages": [AIMessage(content=answer_text)],
+        "confidence": confidence_score,
     }
-
-
 @traceable(name="RAG Tool")
 def rag_node(state: ChatState, config) -> dict:
 
-    
     thread_id = config["configurable"]["thread_id"]
     user_id = config["configurable"]["user_id"]
     query = state["user_message"]
 
     result = retrieve_answer(query, user_id=user_id, thread_id=thread_id)
-    
-    
+
     contexts = [doc.page_content for doc in result]
     metadata = [doc.metadata for doc in result]
 
@@ -200,22 +139,16 @@ def personal_memory_node(state: ChatState, config):
     user_id = config["configurable"]["user_id"]
     query = state["user_message"]
 
-    print("====================================================")
-    print("ENTERED personal_memory_node")
-    print("====================================================")
-    print("User message:", query)
-    print("Resolved user_id:", user_id)
-
     try:
         print("Calling personal_memory_llm.invoke()")
         decision = personal_memory_llm.invoke(
-            [
-                SystemMessage(content=personal_memory_prompt.template),
-                HumanMessage(content=query),
-            ]
+            build_llm_context(
+                messages=[],
+                system_messages=SystemMessage(content=personal_memory_prompt.template),
+                current_user_message=query,
+            )
         )
-        print("LLM response:", decision)
-        print("LLM response type:", type(decision))
+
         if hasattr(decision, "model_dump"):
             print("Structured response dict:", decision.model_dump())
         else:
@@ -274,10 +207,11 @@ def _looks_like_personal_query(query: str) -> bool:
 def intent_node(state: ChatState):
     print("intent_node")
     """Route query to RAG or general chat."""
-    messages = [
-        SystemMessage(content=prompt.template),
-        HumanMessage(content=state["user_message"]),
-    ]
+    messages = build_llm_context(
+        messages=[],
+        system_messages=SystemMessage(content=prompt.template),
+        current_user_message=state["user_message"],
+    )
 
     try:
         result = route_llm.invoke(messages)
@@ -287,8 +221,9 @@ def intent_node(state: ChatState):
 
     return {"route": route}
 
+
 @traceable
-def simple_chat_node(state: ChatState): 
+def simple_chat_node(state: ChatState):
     """Handle simple chat without context."""
     return {}
     query = state["user_message"]
@@ -313,5 +248,12 @@ User message:
 {query}"""
         )
     )
-    response = llm.invoke(messages)
+    response = llm.invoke(
+        build_llm_context(
+            messages=messages,
+            current_user_message=query,
+            conversation_summary=state.get("conversation_summary", ""),
+            important_facts=state.get("important_facts", []),
+        )
+    )
     return {"messages": [response]}

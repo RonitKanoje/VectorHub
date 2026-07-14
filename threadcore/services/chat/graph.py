@@ -156,6 +156,13 @@ async def load_conversation(chatbot, thread_id: str):
             )
 
         elif message.type == "ai":
+            if message.tool_calls and not (
+                is_awaiting_tool_approval
+                and idx == pending_message_index
+                and pending_tool_name
+            ):
+                continue
+
             entry: dict = {
                 "role": "assistant",
                 "content": normalize_content(message.content),

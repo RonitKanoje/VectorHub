@@ -91,6 +91,15 @@ async def load_analyst_conversation(analyst_app, thread_id: str, x_user_id: str)
         if block and (block["content"] or block["visualizations"]):
             conversation.append(block)
 
+    for i, msg in enumerate(messages):
+        print(i)
+        print("TYPE :", msg.type)
+        print("CLASS:", type(msg))
+        print("NAME :", getattr(msg, "name", None))
+        print("CONTENT:")
+        print(msg.content)
+        print("=" * 80)
+
     for message in messages:
         if message.type == "human":
             _flush(current_assistant)

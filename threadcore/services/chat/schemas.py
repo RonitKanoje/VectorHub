@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 
 class StructuredAnswer(BaseModel):
@@ -47,3 +47,6 @@ class ChatState(TypedDict):
     personal_context: list[str]
     stored_personal_facts: list[str]
     confidence: float
+    conversation_summary: NotRequired[str]
+    important_facts: NotRequired[list[str]]
+    summary_message_count: NotRequired[int]

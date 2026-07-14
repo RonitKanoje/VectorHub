@@ -8,6 +8,8 @@ from threadcore.infrastructure.db.session import get_db
 from threadcore.domains.analyst.models import DatasetDB
 from threadcore.services.analyst.profiler import profile_dataset
 from threadcore.services.analyst.graph import get_initial_analyst_state, load_analyst_conversation
+from threadcore.services.chat.llm_config import llm as context_llm
+from threadcore.services.context_builder import schedule_context_cache_refresh
 from threadcore.services.rag.thread_service import (
     get_user_thread,
     save_or_update_thread,
@@ -136,6 +138,13 @@ async def analyst_chat(
                 # For all other tools: send a brief activity preview
                 preview = output_str[:120].replace("\n", " ")
                 yield sse({"type": "tool", "content": f"{tool_name}: {preview}…"})
+
+        schedule_context_cache_refresh(
+            app=analyst_app,
+            config=config,
+            llm=context_llm,
+            as_node="synthesis_agent",
+        )
 
         yield "data: [DONE]\n\n"
 

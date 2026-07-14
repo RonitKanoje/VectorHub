@@ -12,7 +12,10 @@ class GeminiEmbeddingsAdapter(Embeddings):
 
     def __init__(self, model_name: str | None = None, client: Any | None = None) -> None:
         self.model_name = model_name or settings.gemini_embedding_model
-        self.client = client or genai.Client(api_key=settings.gemini_api_key)
+        self.client = client or genai.Client(
+            api_key=settings.gemini_api_key,
+            vertexai=False,
+        )
         self._dimension = None
 
     @property

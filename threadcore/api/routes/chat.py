@@ -9,7 +9,9 @@ from threadcore.services.rag.thread_service import (
 )
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.chat.graph import load_conversation
+from threadcore.services.chat.llm_config import llm as context_llm
 from threadcore.services.chat.naming import title_from_message
+from threadcore.services.context_builder import schedule_context_cache_refresh
 from langchain_core.messages import ToolMessage
 import traceback
 import os
@@ -157,6 +159,13 @@ async def chat(
                             f"data: "
                             f"{json.dumps({'type':'approval','tool':tool_name})}\n\n"
                         )
+            else:
+                schedule_context_cache_refresh(
+                    app=chatbot,
+                    config=config,
+                    llm=context_llm,
+                    as_node="chat_node",
+                )
 
             yield "data: [DONE]\n\n"
 

@@ -3,7 +3,7 @@ import json
 from typing import Any
 import pandas as pd
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langsmith import traceable
 from threadcore.core.config import settings
 from threadcore.services.analyst.state import AnalystState
@@ -17,11 +17,13 @@ from threadcore.services.analyst.prompts import (
     build_synthesis_human_prompt,
     SYNTHESIS_SYSTEM_PROMPT,
 )
+from threadcore.services.context_builder import build_llm_context
 
 # LLMs 
 
-_llm = ChatGoogleGenerativeAI(
+_llm = ChatGroq(
     model=settings.gemini_memory_model,
+    api_key=settings.groq_api_key,
     temperature=0.2,
 )
 
@@ -61,6 +63,24 @@ def _execute_tool_call(tool_call: dict) -> str:
         return tool_map[name].invoke(args)
     except Exception as exc:
         return f"Tool '{name}' raised an error: {exc}"
+
+
+def _content_for_llm_tool_message(tool_name: str, content: str) -> str:
+    if tool_name != "visualization_tool":
+        return content
+
+    try:
+        payload = json.loads(content)
+    except Exception:
+        return content
+
+    if not isinstance(payload, dict) or payload.get("type") != "visualization":
+        return content
+
+    payload = dict(payload)
+    if "image" in payload:
+        payload["image"] = "[base64 image omitted from model context; visualization is persisted and displayed separately]"
+    return json.dumps(payload)
 
 
 
@@ -149,17 +169,21 @@ async def analyst_agent(state: AnalystState) -> dict:
 
     # build initial message list 
     system_prompt = build_schema_system_prompt(schema)
-    loop_messages: list = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_question),
-    ]
-
+    loop_messages: list = build_llm_context(
+        messages=state.get("messages", []),
+        system_messages=SystemMessage(content=system_prompt),
+        current_user_message=user_question,
+        conversation_summary=state.get("conversation_summary", ""),
+        important_facts=state.get("important_facts", []),
+    )
     tool_outputs: list[dict] = []
+    generated_messages: list[AIMessage | ToolMessage] = []
 
     # ReAct loop 
     for iteration in range(MAX_TOOL_ITERATIONS):
         response: AIMessage = await _llm_with_tools.ainvoke(loop_messages)
         loop_messages.append(response)
+        generated_messages.append(response)
 
         # No more tool calls → LLM is done
         if not response.tool_calls:
@@ -170,32 +194,33 @@ async def analyst_agent(state: AnalystState) -> dict:
             result_str = _execute_tool_call(tc)
             tool_outputs.append({"tool": tc["name"], "result": result_str})
 
+            tool_message = ToolMessage(
+                tool_call_id=tc["id"],
+                content=result_str,
+                name=tc["name"],   # required for load_analyst_conv to filter by tool
+            )
             loop_messages.append(
                 ToolMessage(
                     tool_call_id=tc["id"],
-                    content=result_str,
-                    name=tc["name"],   # required for load_analyst_conv to filter by tool
+                    content=_content_for_llm_tool_message(tc["name"], result_str),
+                    name=tc["name"],
                 )
             )
+            generated_messages.append(tool_message)
     else:
         # Exceeded max iterations — append a safety stop message
-        loop_messages.append(
-            AIMessage(
-                content=(
-                    "I reached the maximum number of tool calls. "
-                    "Here is my analysis based on the data collected so far."
-                )
+        safety_message = AIMessage(
+            content=(
+                "I reached the maximum number of tool calls. "
+                "Here is my analysis based on the data collected so far."
             )
         )
+        loop_messages.append(safety_message)
+        generated_messages.append(safety_message)
 
-
-    messages_to_persist = [
-        m for m in loop_messages
-        if not isinstance(m, SystemMessage) and not isinstance(m, HumanMessage)
-    ]
 
     return {
-        "messages": messages_to_persist,
+        "messages": generated_messages,
         "query_results": tool_outputs,
     }
 
@@ -227,7 +252,15 @@ async def synthesis_agent(state: AnalystState) -> dict:
     )
 
     try:
-        response = await _llm.ainvoke([system_msg, human_msg])
+        response = await _llm.ainvoke(
+            build_llm_context(
+                messages=state.get("messages", []),
+                system_messages=system_msg,
+                current_user_message=human_msg,
+                conversation_summary=state.get("conversation_summary", ""),
+                important_facts=state.get("important_facts", []),
+            )
+        )
         content = response.content or agent_answer
     except Exception as exc:
         content = f"{agent_answer}\n\n(Synthesis failed: {exc})"

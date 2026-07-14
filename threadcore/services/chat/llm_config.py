@@ -1,21 +1,19 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 from threadcore.core.config import settings
-from threadcore.services.chat.gemini_memory_client import GeminiPersonalMemoryLLM
 from threadcore.services.chat.schemas import RouteDecision
 
-
-llm = ChatGoogleGenerativeAI(
-    model=settings.gemini_memory_model,
+llm = ChatGroq(
+    model="llama-3.3-70b-versatile",   # or settings.groq_model
+    api_key=settings.groq_api_key,
     temperature=0,
 )
 
-# Structured-output wrappers — created once and reused across all nodes.
+# Structured-output wrappers
 route_llm = llm.with_structured_output(RouteDecision)
 
-
-# Dedicated Gemini client for personal-memory extraction.
-personal_memory_llm = GeminiPersonalMemoryLLM()
+# Temporary: use the same Groq LLM for memory extraction
+personal_memory_llm = llm.with_structured_output(RouteDecision)
 
 # Configuration constants
-CONFIDENCE_THRESHOLD = 0.8
+CONFIDENCE_THRESHOLD = 0.2

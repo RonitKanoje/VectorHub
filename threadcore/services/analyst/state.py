@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Annotated, Any
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
@@ -16,3 +16,6 @@ class AnalystState(TypedDict):
     eda_report: str            # JSON string with describe, dtypes, nulls, etc. 
     df_schema: dict[str, Any]  # {columns, dtypes, shape, sample_values} built once and reused for every follow-up 
     query_results: list[dict]  # accumulated tool outputs this turn
+    conversation_summary: NotRequired[str]
+    important_facts: NotRequired[list[str]]
+    summary_message_count: NotRequired[int]

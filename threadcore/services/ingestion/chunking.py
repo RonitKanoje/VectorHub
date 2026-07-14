@@ -1,8 +1,9 @@
 from langchain_core.documents import Document
 from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.core import Document as LlamaDocument
-
-from threadcore.services.rag.gemini_embeddings import GeminiEmbeddingsAdapter
+from threadcore.services.rag.gemini_llamaindex_embeddings import (
+    GeminiLlamaIndexEmbeddings,
+)
 
 
 def cluster_transcript_chunks(chunks, group_size: int = 8):
@@ -79,7 +80,7 @@ def documents_from_text_chunks(chunks):
     return documents
 
 def documents_from_semantic_text(text: str):
-    embed_model = GeminiEmbeddingsAdapter(model_name="gemini-embedding-001")
+    embed_model = GeminiLlamaIndexEmbeddings(model_name="gemini-embedding-001")
 
     splitter = SemanticSplitterNodeParser(
         buffer_size=1,

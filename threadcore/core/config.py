@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
-from pydantic import Field
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -11,21 +12,114 @@ class Settings(BaseSettings):
     db_name: str = Field(default="", validation_alias="DB_NAME")
     db_user: str = Field(default="", validation_alias="DB_USER")
     db_password: str = Field(default="", validation_alias="DB_PASSWORD")
-    session_secret_key: str = Field(default="change-me", validation_alias="SESSION_SECRET_KEY")
+    session_secret_key: str = Field(
+        default="change-me",
+        validation_alias="SESSION_SECRET_KEY",
+    )
 
-    langchain_api_key: str | None = Field(default=None, validation_alias="LANGCHAIN_API_KEY")
-    langchain_tracing_v2: str | None = Field(default=None, validation_alias="LANGCHAIN_TRACING_V2")
-    langchain_endpoint: str | None = Field(default=None, validation_alias="LANGCHAIN_ENDPOINT")
-    langchain_project: str | None = Field(default=None, validation_alias="LANGCHAIN_PROJECT")
+    # LangSmith
+    langsmith_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_API_KEY"),
+    )
 
-    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
-    gemini_api_key: str | None = Field(default=None, validation_alias="GEMINI_API_KEY")
-    gemini_memory_model: str = Field(default="gemini-2.0-flash-lite", validation_alias="GEMINI_MEMORY_MODEL")
-    gemini_embedding_model: str = Field(default="gemini-embedding-001", validation_alias="GEMINI_EMBEDDING_MODEL")
+    langchain_tracing_v2: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_TRACING"),
+    )
 
-    qdrant_url: str = Field(default="http://localhost:6333", validation_alias="QDRANT_URL")
-    redis_host: str = Field(default="127.0.0.1", validation_alias="REDIS_HOST")
-    redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
+    langsmith_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_ENDPOINT"),
+    )
+
+    langsmith_project: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_PROJECT"),
+    )
+
+    # Groq (actual env vars)
+    groq_api_key: str = Field(
+        default="",
+        validation_alias="GROQ_API_KEY",
+    )
+
+    groq_model: str = Field(
+        default="llama-3.3-70b-versatile",
+        validation_alias="GROQ_MODEL",
+    )
+
+    # ------------------------------------------------------------------
+    # KEEP THESE NAMES.
+    # Existing code uses:
+    # settings.gemini_api_key
+    # settings.gemini_memory_model
+    #
+    # During development they will read GROQ values instead.
+    # ------------------------------------------------------------------
+
+    gemini_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "GEMINI_API_KEY",
+            "GROQ_API_KEY",
+        ),
+    )
+
+    gemini_memory_model: str = Field(
+        default="llama-3.3-70b-versatile",
+        validation_alias=AliasChoices(
+            "GEMINI_MEMORY_MODEL",
+            "GROQ_MODEL",
+        ),
+    )
+
+    # Keep embeddings on Gemini
+    gemini_embedding_model: str = Field(
+        default="gemini-embedding-001",
+        validation_alias="GEMINI_EMBEDDING_MODEL",
+    )
+
+    # Infrastructure
+    qdrant_url: str = Field(
+        default="http://localhost:6333",
+        validation_alias="QDRANT_URL",
+    )
+
+    redis_host: str = Field(
+        default="127.0.0.1",
+        validation_alias="REDIS_HOST",
+    )
+
+    redis_port: int = Field(
+        default=6379,
+        validation_alias="REDIS_PORT",
+    )
+
+    context_summary_threshold: int = Field(
+        default=24,
+        validation_alias="CONTEXT_SUMMARY_THRESHOLD",
+    )
+
+    context_recent_message_limit: int = Field(
+        default=10,
+        validation_alias="CONTEXT_RECENT_MESSAGE_LIMIT",
+    )
+
+    context_summary_min_new_messages: int = Field(
+        default=6,
+        validation_alias="CONTEXT_SUMMARY_MIN_NEW_MESSAGES",
+    )
+
+    context_summary_max_transcript_chars: int = Field(
+        default=24000,
+        validation_alias="CONTEXT_SUMMARY_MAX_TRANSCRIPT_CHARS",
+    )
+
+    context_important_fact_limit: int = Field(
+        default=20,
+        validation_alias="CONTEXT_IMPORTANT_FACT_LIMIT",
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
