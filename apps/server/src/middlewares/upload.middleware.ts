@@ -1,13 +1,17 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { Request } from "express";
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void,
+  ) => {
     const userId = req.userId || "anonymous";
     const threadId = req.body.thread_id || "default_thread";
 
-    // Path: data/runtime/uploads/<user_id>/<thread_id>
     const destDir = path.resolve(
       process.cwd(),
       "data",
@@ -15,27 +19,35 @@ const storage = multer.diskStorage({
       "uploads",
       userId,
       threadId,
-    ); // at the time of deployment er have to look here
+    );
 
     fs.mkdirSync(destDir, { recursive: true });
     cb(null, destDir);
   },
-  filename: (req, file, cb) => {
+
+  filename: (
+    req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
+
     cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
   },
 });
 
-const fileFilter = (req, file, cb) => {
+const fileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
+) => {
   const ext = path.extname(file.originalname).toLowerCase();
 
-  // Reject specific executables
   if ([".exe", ".dll", ".bat"].includes(ext)) {
-    return cb(new Error("Executable files are not allowed"), false);
+    return cb(new Error("Executable files are not allowed"));
   }
 
-  // Validate allowed extensions
   const allowedExtensions = [
     ".pdf",
     ".txt",
@@ -50,15 +62,14 @@ const fileFilter = (req, file, cb) => {
   if (allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type: ${ext}`), false);
+    cb(new Error(`Unsupported file type: ${ext}`));
   }
 };
 
-// multer configuration with file size limit
 export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 50 * 1024 * 1024,
   },
 });
