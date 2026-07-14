@@ -8,9 +8,10 @@ from threadcore.services.chat.nodes import (
     personal_memory_node,
     rag_node,
     simple_chat_node,
+    tool_node,
 )
 from threadcore.services.chat.schemas import ChatState
-from threadcore.services.chat.tools_config import tool_node
+from threadcore.services.chat.tools_config import tool_executor
 
 load_dotenv()
 
@@ -22,12 +23,12 @@ def confidence_tools_condition(state: ChatState):
     if confidence >= CONFIDENCE_THRESHOLD:
         return END
 
-    last_message = state["messages"][-1]
+    messages = state.get("messages", [])
 
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "tools"
+    if len(messages) >= 2 and getattr(messages[-2], "type", None) == "tool":
+        return END
 
-    return END
+    return "tool_node"
 
 def intent_route(state: ChatState):
     """Route after intent detection."""
@@ -47,7 +48,8 @@ def build_chatbot(checkpointer):
     graph.add_node("simple_chat_node", simple_chat_node)
     graph.add_node("personal_memory_node", personal_memory_node)
     graph.add_node("chat_node", chat_node)
-    graph.add_node("tools", tool_node)
+    graph.add_node("tool_node", tool_node)
+    graph.add_node("tools", tool_executor)
 
     # Start
     graph.add_edge(START, "intent")
@@ -80,11 +82,12 @@ def build_chatbot(checkpointer):
         "chat_node",
         confidence_tools_condition,
         {
-            "tools": "tools",
+            "tool_node": "tool_node",
             END: END,
         },
     )
 
+    graph.add_edge("tool_node", "tools")
     graph.add_edge("tools", "chat_node")
 
     compiled = graph.compile(

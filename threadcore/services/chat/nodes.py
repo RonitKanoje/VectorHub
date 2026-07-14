@@ -15,6 +15,7 @@ from threadcore.services.chat.prompts import (
     personal_memory_prompt,
     prompt,
     simple_chat_prompt,
+    vectorhub_system_prompt,
 )
 from threadcore.services.chat.schemas import ChatState, StructuredAnswer
 from threadcore.services.chat.tools_config import tools
@@ -68,26 +69,11 @@ def chat_node(state: ChatState):
 
     system_messages = [
         SystemMessage(
-            content=f"""
-You are VectorHub.
-
-Available information sources (highest priority first):
-
-1. Personal Memory
-2. RAG Context
-3. General Knowledge
-
-Use the first source that sufficiently answers the user's question.
-
-## Personal Memory
-{personal_memory_text}
-
-## RAG Context
-{context_text}
-
-## Timing Metadata
-{metadata_text}
-"""
+            content=vectorhub_system_prompt.format(
+                personal_memory_text=personal_memory_text,
+                context_text=context_text,
+                metadata_text=metadata_text,
+            )
         )
     ]
 
@@ -110,15 +96,44 @@ Use the first source that sufficiently answers the user's question.
         print(m.content)
         print("-" * 80)
 
+    # Second pass: ToolNode has already executed.
+    # Just generate the final answer.
+    if is_after_tool:
+        structured_answer = structured_llm.invoke(base_messages)
+
+        return {
+            "messages": [AIMessage(content=structured_answer.answer)],
+            "confidence": 1.0,  # Prevent re-entering tool routing
+        }
+
+    # First pass: generate answer + confidence
     structured_answer = structured_llm.invoke(base_messages)
 
-    answer_text = structured_answer.answer
-    confidence_score = structured_answer.confidence
+    return {
+        "messages": [AIMessage(content=structured_answer.answer)],
+        "confidence": structured_answer.confidence,
+    }
+
+@traceable
+def tool_node(state: ChatState):
+    query = state["user_message"]
+
+    history = state.get("messages", [])
+
+    messages = build_llm_context(
+        messages=history,
+        current_user_message=query,
+        conversation_summary=state.get("conversation_summary", ""),
+        important_facts=state.get("important_facts", []),
+    )
+
+    ai_message = tool_llm.invoke(messages)
 
     return {
-        "messages": [AIMessage(content=answer_text)],
-        "confidence": confidence_score,
+        "messages": [ai_message],
     }
+
+
 @traceable(name="RAG Tool")
 def rag_node(state: ChatState, config) -> dict:
 

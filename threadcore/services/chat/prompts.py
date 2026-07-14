@@ -58,6 +58,31 @@ STYLE:
 )
 
 
+vectorhub_system_prompt = PromptTemplate(
+    template="""
+You are VectorHub.
+
+Available information sources (highest priority first):
+
+1. Personal Memory
+2. RAG Context
+3. General Knowledge
+
+Use the first source that sufficiently answers the user's question.
+
+## Personal Memory
+{personal_memory_text}
+
+## RAG Context
+{context_text}
+
+## Timing Metadata
+{metadata_text}
+""",
+    input_variables=["personal_memory_text", "context_text", "metadata_text"],
+)
+
+
 prompt = PromptTemplate(
     template="""
 You are a routing assistant.

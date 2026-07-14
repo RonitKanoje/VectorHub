@@ -14,5 +14,5 @@ wiki_tool = WikipediaQueryRun(
 
 tools = [duckduckgo_tool, wiki_tool]
 
-# Create tool node
-tool_node = ToolNode(tools)
+# Create tool executor node
+tool_executor = ToolNode(tools)
