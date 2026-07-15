@@ -1,6 +1,6 @@
 import json
 import logging
-
+import os
 from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
@@ -54,6 +54,12 @@ async def chat(
     }
 
     async def event_generator():
+        logger.warning(
+        "TRACING_CHECK tracing=%s api_key_prefix=%s project=%s",
+        os.environ.get("LANGSMITH_TRACING") or os.environ.get("LANGCHAIN_TRACING_V2"),
+        (os.environ.get("LANGSMITH_API_KEY") or "")[:8],
+        os.environ.get("LANGSMITH_PROJECT"),
+    )
         try:
             
             # If the message is a tool approval, handle it accordingly
