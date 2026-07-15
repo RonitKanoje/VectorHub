@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -16,6 +17,11 @@ from threadcore.services.chat.graph import build_chatbot
 from threadcore.services.analyst.graph import build_analyst_app
 from threadcore.api.routes.dataset import router as dataset_router
 from threadcore.api.routes.analyst import router as analyst_router
+
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.DEBUG),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 configure_asyncio_for_windows()
 

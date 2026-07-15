@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from langchain_core.documents import Document
 from langsmith import traceable
@@ -9,6 +10,7 @@ from threadcore.infrastructure.vector.qdrant import (
 )
 
 CHAT_COLLECTION = "CHAT_COLLECTIONN"
+logger = logging.getLogger(__name__)
 
 
 @traceable(name="Store Chat Embeddings")
@@ -83,8 +85,8 @@ def retrieve_chat_embeddings(
             k=5,
         )
 
-    except Exception as e:
-        print(e)
+    except Exception:
+        logger.exception("Chat embedding similarity search failed")
 
     # FILTERED RETRIEVER
     retriever = vector_store.as_retriever(

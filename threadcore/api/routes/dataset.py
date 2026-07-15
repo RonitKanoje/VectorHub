@@ -1,9 +1,9 @@
+import logging
 import os
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from fastapi.responses import StreamingResponse
+
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import json
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.analyst.dataset_service import process_and_save_dataset
 from threadcore.services.rag.thread_service import (
@@ -12,6 +12,7 @@ from threadcore.services.rag.thread_service import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class ProcessDatasetRequest(BaseModel):
@@ -21,11 +22,6 @@ class ProcessDatasetRequest(BaseModel):
     language: str | None = None
     document_name: str | None = None
 
-
-import os
-import traceback
-from fastapi import Depends, Header, HTTPException
-
 @router.post("/process_dataset")
 async def process_dataset(
     request: ProcessDatasetRequest,
@@ -34,7 +30,7 @@ async def process_dataset(
 ):
     
     if not x_user_id:
-        print("ERROR: Missing X-User-Id header")
+        logger.error("Missing X-User-Id header")
         raise HTTPException(
             status_code=401,
             detail="X-User-Id header missing"
@@ -42,15 +38,18 @@ async def process_dataset(
 
 
     if os.path.exists(request.path):
-        print(f"File size     : {os.path.getsize(request.path)} bytes")
-        print(f"Extension     : {os.path.splitext(request.path)[1]}")
+        logger.debug(
+            "Dataset upload details: file_size=%s extension=%s",
+            os.path.getsize(request.path),
+            os.path.splitext(request.path)[1],
+        )
     else:
         raise HTTPException(
             status_code=400,
             detail="File path does not exist"
         )
 
-    print("Checking thread...")
+    logger.debug("Checking analyst thread")
 
     thread = get_user_thread(
         db,
@@ -60,7 +59,7 @@ async def process_dataset(
 
 
     if thread is None:
-        print("Creating new analyst thread...")
+        logger.info("Creating new analyst thread")
         save_or_update_thread(
             db,
             request.thread_id,
@@ -69,7 +68,7 @@ async def process_dataset(
             mode="analyst",
         )
 
-    print("Calling process_and_save_dataset()...")
+    logger.info("Dataset preprocessing started")
 
     try:
         dataset, df, report_json = process_and_save_dataset(
@@ -80,17 +79,14 @@ async def process_dataset(
             document_name=request.document_name,
         )
 
-        print("Dataset preprocessing completed successfully.")
-        print(f"Rows          : {len(df)}")
-        print(f"Columns       : {len(df.columns)}")
-        print("========== PROCESS DATASET SUCCESS ==========\n")
+        logger.info(
+            "Dataset preprocessing completed successfully: rows=%s columns=%s",
+            len(df),
+            len(df.columns),
+        )
 
     except Exception as e:
-        print("\n========== PROCESS DATASET FAILED ==========")
-        print("Exception Type :", type(e).__name__)
-        print("Exception      :", str(e))
-        traceback.print_exc()
-        print("===========================================\n")
+        logger.exception("Dataset preprocessing failed")
 
         raise HTTPException(
             status_code=500,

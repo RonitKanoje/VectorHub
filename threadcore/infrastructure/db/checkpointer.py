@@ -1,5 +1,9 @@
+import logging
+
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver # Asynchronous Version
 from threadcore.infrastructure.db.session import get_async_db_pool
+
+logger = logging.getLogger(__name__)
 
 async def get_checkpointer():
     try:
@@ -8,5 +12,5 @@ async def get_checkpointer():
         await checkpointer.setup()
         return checkpointer, pool
     except Exception as exc:
-        print("Failed to initialize async checkpointer, continuing without it:", repr(exc))
+        logger.exception("Failed to initialize async checkpointer, continuing without it")
         return None, None

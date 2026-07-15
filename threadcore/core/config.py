@@ -121,6 +121,11 @@ class Settings(BaseSettings):
         validation_alias="CONTEXT_IMPORTANT_FACT_LIMIT",
     )
 
+    log_level: str = Field(
+        default="DEBUG",
+        validation_alias="LOG_LEVEL",
+    )
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",

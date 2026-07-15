@@ -1,6 +1,6 @@
 import json
+import logging
 import re
-import traceback
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -14,6 +14,8 @@ from threadcore.domains.rag.models import (
     MemoryTopicVersionDB,
     UserMemoryDB,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_text(text: str) -> str:
@@ -141,7 +143,7 @@ def create_memory(
         db.refresh(best_match)
         return best_match
     except Exception:
-        traceback.print_exc()
+        logger.exception("Database failure while creating memory")
         db.rollback()
         raise
 

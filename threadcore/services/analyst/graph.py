@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
@@ -7,6 +8,8 @@ from threadcore.domains.analyst.models import DatasetDB
 from threadcore.services.analyst.profiler import format_profile_message, profile_dataset
 from threadcore.services.analyst.state import AnalystState
 from threadcore.services.analyst.nodes import (analyst_agent,eda_agent,preprocessor_agent,synthesis_agent)
+
+logger = logging.getLogger(__name__)
 
 # Router
 def route_after_start(state: AnalystState) -> str:
@@ -92,13 +95,14 @@ async def load_analyst_conversation(analyst_app, thread_id: str, x_user_id: str)
             conversation.append(block)
 
     for i, msg in enumerate(messages):
-        print(i)
-        print("TYPE :", msg.type)
-        print("CLASS:", type(msg))
-        print("NAME :", getattr(msg, "name", None))
-        print("CONTENT:")
-        print(msg.content)
-        print("=" * 80)
+        logger.debug(
+            "Analyst message[%s]: type=%s class=%s name=%s content=%s",
+            i,
+            msg.type,
+            type(msg),
+            getattr(msg, "name", None),
+            msg.content,
+        )
 
     for message in messages:
         if message.type == "human":

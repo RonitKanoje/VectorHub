@@ -46,7 +46,8 @@ def build_llm_context(
     long_term_memory: str | Sequence[str] | None = None,
     config: ContextBuilderConfig = DEFAULT_CONTEXT_CONFIG,
 ) -> list[BaseMessage]:
-    """Build the prompt sent to an LLM without changing checkpointed messages."""
+    
+
     system_block = _coerce_system_messages(system_messages)
     current_message = _coerce_current_user_message(current_user_message)
     history = _without_current_user_message(list(messages), current_message)

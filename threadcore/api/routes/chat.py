@@ -1,5 +1,10 @@
+import json
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
+from langchain_core.messages import ToolMessage
 from sqlalchemy.orm import Session
 from threadcore.api.dependencies import ensure_thread_access, get_chatbot, get_current_user
 from threadcore.api.schemas import ChatMessageRequest, ChatNameRequest, ThreadNameFromUploadRequest
@@ -12,13 +17,9 @@ from threadcore.services.chat.graph import load_conversation
 from threadcore.services.chat.llm_config import llm as context_llm
 from threadcore.services.chat.naming import title_from_message
 from threadcore.services.context_builder import schedule_context_cache_refresh
-from langchain_core.messages import ToolMessage
-import traceback
-import os
-from fastapi.responses import StreamingResponse
-import json
 
 router = APIRouter(tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
@@ -33,6 +34,7 @@ async def chat(
     chatbot=Depends(get_chatbot),
     db: Session = Depends(get_db),
 ):
+    logger.info("Chat request received")
     thread = get_user_thread(db, chat_message.thread_id, current_user)
 
     if thread is None:
@@ -57,6 +59,7 @@ async def chat(
             # If the message is a tool approval, handle it accordingly
             if getattr(chat_message, "is_tool_approval", False):
                 if chat_message.content.lower() == "yes":
+                    logger.info("Tool execution approved; resuming graph")
 
                     stream = chatbot.astream_events(
                         None,
@@ -64,6 +67,7 @@ async def chat(
                         version="v2",
                     )
                 else:  ## user denied tool usage 
+                    logger.info("Tool execution rejected; resuming graph with denial ToolMessage")
                     state = await chatbot.aget_state(config)
 
                     if state.values and "messages" in state.values:
@@ -138,7 +142,7 @@ async def chat(
                                     )
 
                 except Exception as e:
-                    traceback.print_exc()
+                    logger.exception("Error while processing chat stream event")
                     raise
 
 
@@ -154,6 +158,7 @@ async def chat(
                         and last_msg.tool_calls
                     ):
                         tool_name = last_msg.tool_calls[0]["name"]
+                        logger.debug("Tool approval required for tool: %s", tool_name)
 
                         yield (
                             f"data: "
@@ -166,11 +171,12 @@ async def chat(
                     llm=context_llm,
                     as_node="chat_node",
                 )
+                logger.info("Request completed successfully")
 
             yield "data: [DONE]\n\n"
 
         except Exception as e:      
-            traceback.print_exc()
+            logger.exception("Chat request failed")
 
             yield (
                 f"data: "

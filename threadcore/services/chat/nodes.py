@@ -1,6 +1,6 @@
 """Node functions for the conversation graph."""
 
-import traceback
+import logging
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langsmith import traceable
@@ -23,6 +23,8 @@ from threadcore.services.rag.memory_service import (
     store_user_memories,
     retrieve_user_memories,
 )
+
+logger = logging.getLogger(__name__)
 
 tool_llm = llm.bind_tools(tools)
 
@@ -86,13 +88,10 @@ def chat_node(state: ChatState):
         important_facts=state.get("important_facts", []),
     )
 
-    print("=" * 80)
-    print("FINAL PROMPT")
-    print("=" * 80)
-    for m in base_messages:
-        print(type(m).__name__)
-        print(m.content)
-        print("-" * 80)
+    logger.debug(
+        "Final prompt:\n%s",
+        "\n\n".join(f"{type(m).__name__}\n{m.content}" for m in base_messages),
+    )
 
     # Second pass: ToolNode has already executed.
     # Just generate the final answer.
@@ -131,6 +130,7 @@ def tool_node(state: ChatState):
     )
 
     ai_message = tool_llm.invoke(messages)
+    logger.debug("Tool selection output: %s", getattr(ai_message, "tool_calls", None))
 
     return {
         "messages": [ai_message],
@@ -148,6 +148,11 @@ def rag_node(state: ChatState, config) -> dict:
 
     contexts = [doc.page_content for doc in result]
     metadata = [doc.metadata for doc in result]
+    if contexts:
+        logger.info("RAG retrieval completed: %s documents", len(contexts))
+        logger.debug("Retrieved RAG context count: %s", len(contexts))
+    else:
+        logger.warning("No RAG documents found")
 
     return {"context": contexts, "meta": metadata}
 
@@ -158,7 +163,7 @@ def personal_memory_node(state: ChatState, config):
     query = state["user_message"]
 
     try:
-        print("Calling personal_memory_llm.invoke()")
+        logger.debug("Invoking personal memory decision LLM")
         decision = personal_memory_llm.invoke(
             build_llm_context(
                 messages=[],
@@ -168,50 +173,52 @@ def personal_memory_node(state: ChatState, config):
         )
 
         if hasattr(decision, "model_dump"):
-            print("Structured response dict:", decision.model_dump())
+            logger.debug("Personal memory structured response: %s", decision.model_dump())
         else:
-            print("Structured response repr:", repr(decision))
+            logger.debug("Personal memory structured response: %r", decision)
 
         facts = [fact.strip() for fact in getattr(decision, "facts", []) if fact and str(fact).strip()]
         decision_should_store = bool(getattr(decision, "should_store", False))
         should_store = decision_should_store and bool(facts)
 
-        print("Parsed PersonalMemoryDecision:")
-        print("should_store from Gemini:", decision_should_store)
-        print("facts:", facts)
-        print("should_retrieve:", getattr(decision, "should_retrieve", None))
-        print("Effective should_store:", should_store)
+        logger.debug(
+            "Personal memory decision parsed: should_store=%s facts=%s should_retrieve=%s effective_should_store=%s",
+            decision_should_store,
+            facts,
+            getattr(decision, "should_retrieve", None),
+            should_store,
+        )
         if not decision_should_store:
-            print("EARLY RETURN CANDIDATE: Gemini returned should_store=False")
+            logger.debug("Personal memory LLM returned should_store=False")
         if not facts:
-            print("EARLY RETURN CANDIDATE: Gemini returned no facts")
-        print("facts:", facts)
+            logger.debug("Personal memory LLM returned no facts")
 
     except Exception:
-        print("Exception from personal_memory_llm.invoke()")
-        traceback.print_exc()
+        logger.exception("Personal memory LLM invocation failed")
         raise
 
     if should_store:
-        print("Calling store_user_memories()")
-        print("user_id:", user_id)
-        print("facts:", facts)
+        logger.debug("Storing personal memories for user_id=%s facts=%s", user_id, facts)
         store_user_memories(user_id=user_id, memories=facts)
-        print("EXIT store_user_memories call in personal_memory_node")
+        logger.info("Memory stored successfully")
     else:
-        print("EARLY RETURN: store_user_memories() not called")
-        print("Skipping store_user_memories() because should_store=False or facts=[]")
+        logger.debug("Skipping memory storage because should_store=False or facts=[]")
 
     memories = retrieve_user_memories(user_id=user_id)
     personal_context = [m.memory_text for m in memories]
 
-    print("Retrieved personal_context:", personal_context)
-    print("EXIT personal_memory_node")
+    if personal_context:
+        logger.debug("Retrieved personal memories: %s", personal_context)
+    else:
+        logger.warning("No personal memories retrieved")
 
     return {
         "personal_context": personal_context,
         "stored_personal_facts": facts if should_store else [],
     }
+
+
+
 
 
 def _looks_like_personal_query(query: str) -> bool:
@@ -223,7 +230,6 @@ def _looks_like_personal_query(query: str) -> bool:
 
 @traceable(name="INTENT_NODE_TRACE")
 def intent_node(state: ChatState):
-    print("intent_node")
     """Route query to RAG or general chat."""
     messages = build_llm_context(
         messages=[],
@@ -234,7 +240,9 @@ def intent_node(state: ChatState):
     try:
         result = route_llm.invoke(messages)
         route = result.decision
+        logger.info("Intent classification completed: %s", route)
     except Exception:
+        logger.exception("Intent classification failed; falling back to chat")
         route = "chat"
 
     return {"route": route}

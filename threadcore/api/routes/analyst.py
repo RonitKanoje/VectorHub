@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ from threadcore.services.rag.thread_service import (
 )
 
 router = APIRouter(tags=["analyst"])
+logger = logging.getLogger(__name__)
 
 
 class AnalystChatRequest(BaseModel):
@@ -86,7 +88,7 @@ async def analyst_chat(
         try:
             dataset_profile = profile_dataset(dataset.file_path)
         except Exception as exc:
-            print(exc)
+            logger.exception("Dataset profiling failed")
 
         # initial state
         inputs = get_initial_analyst_state(
