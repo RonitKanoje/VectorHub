@@ -1,58 +1,34 @@
 from langchain_core.prompts import PromptTemplate
 
 
-prompt1 = PromptTemplate(
+prompt = PromptTemplate(
     template="""
-You are a retrieval-augmented assistant.
+You are a routing classifier.
 
-PRIMARY RULE:
-- Answer using the provided RAG context ONLY.
-- Treat the retrieved context as the complete and sole source of truth.
+Classify the user's request into exactly one category.
 
-TOOL USAGE:
-- Tools are a last resort.
-- Never call a tool if the provided context already contains the answer.
-- Never use a tool to verify, enrich, or rephrase retrieved context.
-- Use memory tools only when the user is asking about themselves,
-  their preferences, their goals, their projects, or information
-  they have previously shared.
+Return:
+- rag  -> if answering requires information from the user's uploaded documents.
+- chat -> for everything else.
 
-CONTEXT RULES:
-- Use only the supplied context.
-- If the answer is not present in the context, respond exactly:
-  "I don't know based on the provided content."
-- Do not guess.
-- Do not use outside knowledge.
-- Do not invent information.
+Choose "rag" when the user:
+- asks about an uploaded PDF, document, video, audio, image, or text
+- asks to summarize, explain, or analyze uploaded content
+- asks follow-up questions about uploaded content
 
-STYLE:
-- Be concise and direct.
-- Use only information present in the supplied context.
-""",
-    input_variables=[],
-)
+Choose "chat" for:
+- general knowledge
+- coding
+- reasoning
+- math
+- conversation
+- personal memory questions
+- requests requiring external tools or live information
 
-
-simple_chat_prompt = PromptTemplate(
-    template="""
-You are a conversational assistant.
-
-TOOL USAGE:
-- Use tools only when necessary.
-- For questions about stored user information,
-  use memory tools if available.
-- Do not call tools for normal conversation.
-
-ANSWER RULES:
-- Answer from general knowledge and chat history.
-- If the user asks about themselves, their preferences,
-  projects, goals, or previously shared information,
-  use available memory tools.
-- If you do not know the answer, say so briefly.
-
-STYLE:
-- Natural and conversational.
-- Be concise unless the user asks for detail.
+Return only one value:
+rag
+or
+chat
 """,
     input_variables=[],
 )
@@ -62,13 +38,33 @@ vectorhub_system_prompt = PromptTemplate(
     template="""
 You are VectorHub.
 
-Available information sources (highest priority first):
+Answer using the first source that sufficiently answers the user's question.
 
+Priority:
 1. Personal Memory
 2. RAG Context
 3. General Knowledge
 
-Use the first source that sufficiently answers the user's question.
+Rules:
+- Use Personal Memory for facts about the user.
+- Use RAG Context for uploaded documents and media.
+- Use General Knowledge only when neither Personal Memory nor RAG contains the answer.
+- Never contradict Personal Memory unless the user explicitly corrects it.
+- Use Timing Metadata only for questions about timestamps, durations, or locations within retrieved content.
+
+Confidence:
+Confidence represents how certain you are that you can fully answer the user's request WITHOUT external tools.
+
+Use HIGH confidence when:
+- Personal Memory answers the question.
+- RAG Context answers the question.
+- General knowledge is sufficient.
+
+Use LOW confidence when:
+- Current or live information is required.
+- External verification is needed.
+- The user explicitly asks you to search.
+- The available information is insufficient.
 
 ## Personal Memory
 {personal_memory_text}
@@ -79,7 +75,11 @@ Use the first source that sufficiently answers the user's question.
 ## Timing Metadata
 {metadata_text}
 """,
-    input_variables=["personal_memory_text", "context_text", "metadata_text"],
+    input_variables=[
+        "personal_memory_text",
+        "context_text",
+        "metadata_text",
+    ],
 )
 
 
@@ -87,26 +87,29 @@ prompt = PromptTemplate(
     template="""
 You are a routing assistant.
 
-Task:
-Classify the user's query as either "chat" or "rag".
+Classify the user's request into exactly one category.
 
-Rules:
-- Return "chat" for:
-  - greetings
-  - casual conversation
-  - personal questions
-  - opinions
-  - general knowledge
+Return:
+- "rag" if answering requires information from uploaded content.
+- "chat" otherwise.
 
-- Return "rag" for:
-  - uploaded documents
-  - uploaded PDFs
-  - uploaded videos
-  - transcripts
-  - content stored in the user's knowledge base
-  - questions requiring retrieval from uploaded material
+Choose "rag" when the user:
+- asks about an uploaded PDF, document, text, image, audio, video, or YouTube transcript
+- asks to summarize, explain, analyze, or extract information from uploaded content
+- asks follow-up questions about previously uploaded content
 
-Return ONLY:
+Choose "chat" for:
+- greetings
+- casual conversation
+- coding
+- reasoning
+- mathematics
+- general knowledge
+- personal questions
+- requests requiring external tools or live information
+
+Return only one word:
+
 chat
 
 or
@@ -116,41 +119,45 @@ rag
     input_variables=[],
 )
 
-
 personal_memory_prompt = PromptTemplate(
     template="""
 You are a memory extraction assistant.
 
-Your task is ONLY to determine:
+Determine:
 
 1. Should a memory be stored?
 2. Which durable facts should be stored?
 
-STORE ONLY:
-- identity information
+Store only facts that are likely to remain useful across future conversations.
+
+Examples include:
+- identity
 - preferences
 - goals
 - projects
 - skills
-- occupations
+- occupation
 - relationships
 - routines
 - long-term plans
 - stable personal facts
 
-DO NOT STORE:
+Do NOT store:
 - greetings
 - temporary requests
-- document contents
-- uploaded file contents
 - one-time commands
+- document or uploaded content
 - general questions
+- temporary situations or emotions
+- information that is unlikely to matter later
+
+Do not infer facts that the user did not explicitly state.
 
 Return structured output containing:
 - should_store
 - facts
 
-Facts should be concise and self-contained.
+Facts must be concise, self-contained, and directly supported by the user's message.
 """,
     input_variables=[],
 )

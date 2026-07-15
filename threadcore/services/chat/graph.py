@@ -29,7 +29,6 @@ def confidence_tools_condition(state: ChatState):
         return END
 
     return "tool_node"
-
 def intent_route(state: ChatState):
     """Route after intent detection."""
     if state["route"] == "rag":
@@ -54,7 +53,7 @@ def build_chatbot(checkpointer):
     # Start
     graph.add_edge(START, "intent")
 
-    # Intent decides between chat and rag
+    # Intent decides between chat and RAG
     graph.add_conditional_edges(
         "intent",
         intent_route,
@@ -64,9 +63,10 @@ def build_chatbot(checkpointer):
         },
     )
 
-    # Memory always runs in parallel
+    # Personal memory always runs in parallel
     graph.add_edge("intent", "personal_memory_node")
 
+    # Join before chat
     graph.add_edge(
         ["rag_node", "personal_memory_node"],
         "chat_node",
@@ -77,7 +77,7 @@ def build_chatbot(checkpointer):
         "chat_node",
     )
 
-    # Tool routing
+    # Confidence-based tool routing
     graph.add_conditional_edges(
         "chat_node",
         confidence_tools_condition,
@@ -87,6 +87,7 @@ def build_chatbot(checkpointer):
         },
     )
 
+    # Tool execution
     graph.add_edge("tool_node", "tools")
     graph.add_edge("tools", "chat_node")
 
@@ -96,7 +97,6 @@ def build_chatbot(checkpointer):
     )
 
     return compiled
-
 def normalize_content(content):
     if isinstance(content, str):
         return content

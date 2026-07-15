@@ -8,13 +8,48 @@ from pydantic import BaseModel, Field
 from typing_extensions import NotRequired, TypedDict
 
 
+
 class StructuredAnswer(BaseModel):
-    """LLM structured output for answered questions."""
-    answer: str = Field(description="Final answer to the user")
-    confidence: float = Field(
-        description="Confidence from 0 to 1 that the answer is grounded in context"
+    """
+    Structured response produced by chat_node before tool routing.
+    """
+
+    answer: str = Field(
+        description=(
+            "The best answer that can be generated using only the available "
+            "Personal Memory, RAG Context, and General Knowledge. "
+            "Do not assume external tools or live information are available."
+        )
     )
 
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description=(
+            "A confidence score between 0.0 and 1.0 representing how confident "
+            "you are that the user's request can be completely answered WITHOUT "
+            "using external tools.\n\n"
+            "Use HIGH confidence (0.8-1.0) when:\n"
+            "- Personal Memory fully answers the question.\n"
+            "- RAG Context fully answers the question.\n"
+            "- General knowledge is sufficient.\n"
+            "- Programming, reasoning, mathematics, or explanatory questions.\n\n"
+            "Use MEDIUM confidence (0.4-0.7) when:\n"
+            "- The available information is only partially sufficient.\n"
+            "- Some assumptions would be required.\n\n"
+            "Use LOW confidence (0.0-0.3) when:\n"
+            "- Current or live information is required.\n"
+            "- News, weather, sports scores, stock prices, gold prices, or "
+            "currency exchange rates are requested.\n"
+            "- The user explicitly asks to search the web, DuckDuckGo, or Wikipedia.\n"
+            "- External verification is required.\n"
+            "- The required information is missing from Personal Memory, RAG Context, "
+            "and General Knowledge.\n\n"
+            "This score is used ONLY for deciding whether external tools should be "
+            "invoked. It is NOT a measure of how grammatically correct or well-written "
+            "the answer is."
+        ),
+    )
 
 class RouteDecision(BaseModel):
     """LLM structured output for routing decisions."""

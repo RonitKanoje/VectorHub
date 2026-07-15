@@ -14,7 +14,6 @@ from threadcore.services.chat.llm_config import (
 from threadcore.services.chat.prompts import (
     personal_memory_prompt,
     prompt,
-    simple_chat_prompt,
     vectorhub_system_prompt,
 )
 from threadcore.services.chat.schemas import ChatState, StructuredAnswer
@@ -241,34 +240,3 @@ def intent_node(state: ChatState):
 def simple_chat_node(state: ChatState):
     """Handle simple chat without context."""
     return {}
-    query = state["user_message"]
-    personal_context = state.get("personal_context", [])  # ← add this
-
-    personal_context_text = (
-        "\n".join(f"- {m}" for m in personal_context)
-        if personal_context
-        else "No personal memory found."
-    )
-
-    messages = state.get("messages", []).copy()
-    if not messages:
-        messages.append(SystemMessage(content=simple_chat_prompt.template))
-
-    messages.append(
-        HumanMessage(
-            content=f"""Known facts about this user:
-{personal_context_text}
-
-User message:
-{query}"""
-        )
-    )
-    response = llm.invoke(
-        build_llm_context(
-            messages=messages,
-            current_user_message=query,
-            conversation_summary=state.get("conversation_summary", ""),
-            important_facts=state.get("important_facts", []),
-        )
-    )
-    return {"messages": [response]}
