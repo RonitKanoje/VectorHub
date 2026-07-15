@@ -219,15 +219,6 @@ def personal_memory_node(state: ChatState, config):
 
 
 
-
-
-def _looks_like_personal_query(query: str) -> bool:
-    lowered = query.lower()
-    personal_markers = ("my ", "me ", "i am", "i'm", "i like", "i prefer",
-                        "remember", "what is my", "what's my", "who am i")
-    return any(marker in lowered for marker in personal_markers)
-
-
 @traceable(name="INTENT_NODE_TRACE")
 def intent_node(state: ChatState):
     """Route query to RAG or general chat."""
