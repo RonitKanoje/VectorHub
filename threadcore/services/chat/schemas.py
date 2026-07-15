@@ -22,32 +22,16 @@ class StructuredAnswer(BaseModel):
         )
     )
 
-    confidence: float = Field(
-        ge=0.0,
-        le=1.0,
+    can_answer_without_tools: bool = Field(
         description=(
-            "A confidence score between 0.0 and 1.0 representing how confident "
-            "you are that the user's request can be completely answered WITHOUT "
-            "using external tools.\n\n"
-            "Use HIGH confidence (0.8-1.0) when:\n"
-            "- Personal Memory fully answers the question.\n"
-            "- RAG Context fully answers the question.\n"
-            "- General knowledge is sufficient.\n"
-            "- Programming, reasoning, mathematics, or explanatory questions.\n\n"
-            "Use MEDIUM confidence (0.4-0.7) when:\n"
-            "- The available information is only partially sufficient.\n"
-            "- Some assumptions would be required.\n\n"
-            "Use LOW confidence (0.0-0.3) when:\n"
-            "- Current or live information is required.\n"
-            "- News, weather, sports scores, stock prices, gold prices, or "
-            "currency exchange rates are requested.\n"
-            "- The user explicitly asks to search the web, DuckDuckGo, or Wikipedia.\n"
-            "- External verification is required.\n"
-            "- The required information is missing from Personal Memory, RAG Context, "
-            "and General Knowledge.\n\n"
-            "This score is used ONLY for deciding whether external tools should be "
-            "invoked. It is NOT a measure of how grammatically correct or well-written "
-            "the answer is."
+            "True if the user's request can be completely answered using only "
+            "Personal Memory, RAG Context, and General Knowledge. False if "
+            "external tools (DuckDuckGo, Wikipedia, etc.) are required.\n\n"
+            "Return True for general knowledge, programming, reasoning, mathematics, "
+            "or when Personal Memory or RAG Context answers the question.\n\n"
+            "Return False for live information, current prices, weather, news, sports "
+            "scores, currency exchange rates, explicit requests to search, or when "
+            "the information is unavailable without external tools."
         ),
     )
 
@@ -81,7 +65,7 @@ class ChatState(TypedDict):
     meta: list[dict]
     personal_context: list[str]
     stored_personal_facts: list[str]
-    confidence: float
+    can_answer_without_tools: bool
     conversation_summary: NotRequired[str]
     important_facts: NotRequired[list[str]]
     summary_message_count: NotRequired[int]

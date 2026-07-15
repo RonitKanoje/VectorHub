@@ -52,16 +52,22 @@ Rules:
 - Never contradict Personal Memory unless the user explicitly corrects it.
 - Use Timing Metadata only for questions about timestamps, durations, or locations within retrieved content.
 
-Confidence:
-Confidence represents how certain you are that you can fully answer the user's request WITHOUT external tools.
+Tool decision:
+Set can_answer_without_tools to True only when the user's request can be completely answered without external tools.
 
-Use HIGH confidence when:
+Set can_answer_without_tools to True when:
 - Personal Memory answers the question.
 - RAG Context answers the question.
 - General knowledge is sufficient.
+- The request is about programming, reasoning, or mathematics.
 
-Use LOW confidence when:
+Set can_answer_without_tools to False when:
 - Current or live information is required.
+- Current prices are requested.
+- Weather is requested.
+- News is requested.
+- Sports scores are requested.
+- Currency exchange rates are requested.
 - External verification is needed.
 - The user explicitly asks you to search.
 - The available information is insufficient.

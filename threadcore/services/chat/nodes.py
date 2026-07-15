@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langsmith import traceable
 
 from threadcore.services.chat.llm_config import (
-    CONFIDENCE_THRESHOLD,
     llm,
     personal_memory_llm,
     route_llm,
@@ -102,15 +101,20 @@ def chat_node(state: ChatState):
 
         return {
             "messages": [AIMessage(content=structured_answer.answer)],
-            "confidence": 1.0,  # Prevent re-entering tool routing
+            "can_answer_without_tools": True,
         }
 
-    # First pass: generate answer + confidence
+    # First pass: generate answer + tool decision
     structured_answer = structured_llm.invoke(base_messages)
+
+    if not structured_answer.can_answer_without_tools:
+        return {
+            "can_answer_without_tools": False,
+        }
 
     return {
         "messages": [AIMessage(content=structured_answer.answer)],
-        "confidence": structured_answer.confidence,
+        "can_answer_without_tools": True,
     }
 
 @traceable

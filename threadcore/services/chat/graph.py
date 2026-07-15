@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from langgraph.graph import START, END, StateGraph
 from langsmith import traceable
-from threadcore.services.chat.llm_config import CONFIDENCE_THRESHOLD
 from threadcore.services.chat.nodes import (
     chat_node,
     intent_node,
@@ -16,19 +15,13 @@ from threadcore.services.chat.tools_config import tool_executor
 load_dotenv()
 
 
-def confidence_tools_condition(state: ChatState):
-   
-    confidence = state.get("confidence", 1.0)
-
-    if confidence >= CONFIDENCE_THRESHOLD:
-        return END
-
-    messages = state.get("messages", [])
-
-    if len(messages) >= 2 and getattr(messages[-2], "type", None) == "tool":
+def tool_decision_condition(state: ChatState):
+    if state["can_answer_without_tools"]:
         return END
 
     return "tool_node"
+
+
 def intent_route(state: ChatState):
     """Route after intent detection."""
     if state["route"] == "rag":
@@ -77,10 +70,10 @@ def build_chatbot(checkpointer):
         "chat_node",
     )
 
-    # Confidence-based tool routing
+    # Tool decision routing
     graph.add_conditional_edges(
         "chat_node",
-        confidence_tools_condition,
+        tool_decision_condition,
         {
             "tool_node": "tool_node",
             END: END,

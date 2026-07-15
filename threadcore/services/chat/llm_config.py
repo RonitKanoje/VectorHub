@@ -15,5 +15,3 @@ route_llm = llm.with_structured_output(RouteDecision)
 # Temporary: use the same Groq LLM for memory extraction
 personal_memory_llm = llm.with_structured_output(RouteDecision)
 
-# Configuration constants
-CONFIDENCE_THRESHOLD = 0.2
