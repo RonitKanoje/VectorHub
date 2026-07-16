@@ -1,7 +1,7 @@
 from langchain_groq import ChatGroq
 
 from threadcore.core.config import settings
-from threadcore.services.chat.schemas import RouteDecision
+from threadcore.services.chat.schemas import MemoryReconciliationDecision, RouteDecision , PersonalMemoryDecision
 
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",   # or settings.groq_model
@@ -11,7 +11,10 @@ llm = ChatGroq(
 
 # Structured-output wrappers
 route_llm = llm.with_structured_output(RouteDecision)
+memory_reconciliation_llm = llm.with_structured_output(
+    MemoryReconciliationDecision
+)
 
 # Temporary: use the same Groq LLM for memory extraction
-personal_memory_llm = llm.with_structured_output(RouteDecision)
+personal_memory_llm = llm.with_structured_output(PersonalMemoryDecision)
 

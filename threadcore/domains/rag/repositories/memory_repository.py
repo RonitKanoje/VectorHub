@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -12,7 +11,6 @@ from threadcore.domains.rag.models import (
     MemoryTopicDB,
     MemoryTopicEvidenceDB,
     MemoryTopicVersionDB,
-    UserMemoryDB,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,14 +23,6 @@ def _normalize_text(text: str) -> str:
 def _topic_title(text: str) -> str:
     cleaned = _normalize_text(text)
     return cleaned[:70] if cleaned else "Memory"
-
-
-def _token_overlap(left: str, right: str) -> float:
-    left_tokens = set(re.findall(r"\w+", left.lower()))
-    right_tokens = set(re.findall(r"\w+", right.lower()))
-    if not left_tokens or not right_tokens:
-        return 0.0
-    return len(left_tokens & right_tokens) / min(len(left_tokens), len(right_tokens))
 
 
 def get_memories_for_user(db: Session, user_id: str):
@@ -51,55 +41,33 @@ def get_memories_for_user(db: Session, user_id: str):
     )
 
 
-def create_memory(
-    db: Session,
-    user_id: str,
-    memory_text: str,
-    memory_type: str = "general",
-):
-    """Create a topic document and the atomic event that led to it."""
+def get_memories_by_ids(db: Session, user_id: str, memory_ids: list[str]):
+    """Get active topic documents for a user by id."""
+    if not memory_ids:
+        return []
 
-    cleaned = _normalize_text(memory_text)
-    if not cleaned:
-        return None
-
-    topic = (
+    return (
         db.query(MemoryTopicDB)
         .filter(
             MemoryTopicDB.user_id == user_id,
-            MemoryTopicDB.is_deleted == False,
+            MemoryTopicDB.id.in_(memory_ids),
+            MemoryTopicDB.is_deleted == False, ## soft deleting the memory we are not deleting it permenately
         )
-        .order_by(MemoryTopicDB.updated_at.desc())
         .all()
     )
 
-    best_match = None
-    best_score = 0.0
-    for candidate in topic:
-        score = _token_overlap(candidate.summary, cleaned)
-            
-        if score > best_score and score >= 0.35:
-            best_match = candidate
-            best_score = score
 
-    if best_match is None:
-        topic_obj = MemoryTopicDB(
-            user_id=user_id,
-            title=_topic_title(cleaned),
-            summary=cleaned,
-            memory_type=memory_type,
-            confidence_score=80,
-            metadata_json=json.dumps({"source": "initial_extraction"}),
-        )
-        db.add(topic_obj)
-        db.flush()
-        topic_id = topic_obj.id
-    else:
-        best_match.summary = f"{best_match.summary} | {cleaned}"
-        best_match.updated_at = datetime.utcnow()
-        best_match.evidence_count = (best_match.evidence_count or 0) + 1
-        best_match.summary_version = (best_match.summary_version or 1) + 1
-        topic_id = best_match.id
+def create_memory_event(
+    db: Session,
+    user_id: str,
+    topic_id: str,
+    memory_text: str,
+    memory_type: str = "general",
+):
+    """Create an atomic memory event for a topic."""
+    cleaned = _normalize_text(memory_text)
+    if not cleaned:
+        return None
 
     event = MemoryEventDB(
         user_id=user_id,
@@ -112,7 +80,6 @@ def create_memory(
     )
     db.add(event)
     db.flush()
-    return event
 
     evidence = MemoryTopicEvidenceDB(
         topic_id=topic_id,
@@ -122,30 +89,67 @@ def create_memory(
         evidence_excerpt=cleaned,
     )
     db.add(evidence)
+    return event
 
-    version = MemoryTopicVersionDB(
+
+def create_memory_version(
+    db: Session,
+    topic_id: str,
+    version: int,
+    summary: str,
+    change_reason: str = "fact_ingested",
+):
+    """Create a topic version snapshot."""
+    snapshot = MemoryTopicVersionDB(
         topic_id=topic_id,
-        version=(best_match.summary_version if best_match else 1),
-        summary=cleaned if best_match is None else (best_match.summary or cleaned),
-        change_reason="fact_ingested",
+        version=version,
+        summary=_normalize_text(summary),
+        change_reason=change_reason,
         created_by="memory_service",
     )
-    db.add(version)
+    db.add(snapshot)
+    db.flush()
+    return snapshot
 
-    try:
-        db.commit()
-        topic_count = db.query(func.count(MemoryTopicDB.id)).scalar()
-        event_count = db.query(func.count(MemoryEventDB.id)).scalar()
-        db.refresh(event)
-        if best_match is None:
-            db.refresh(topic_obj)
-            return topic_obj
-        db.refresh(best_match)
-        return best_match
-    except Exception:
-        logger.exception("Database failure while creating memory")
-        db.rollback()
-        raise
+
+def create_memory(
+    db: Session,
+    user_id: str,
+    memory_text: str,
+    memory_type: str = "general",
+):
+    """Create a topic document and the atomic event that led to it."""
+
+    cleaned = _normalize_text(memory_text)
+    if not cleaned:
+        return None
+
+    topic_obj = MemoryTopicDB(
+        user_id=user_id,
+        title=_topic_title(cleaned),
+        summary=cleaned,
+        memory_type=memory_type,
+
+        metadata_json=json.dumps({"source": "initial_extraction"}),
+    )
+    db.add(topic_obj)
+    db.flush()
+    event = create_memory_event(
+        db=db,
+        user_id=user_id,
+        topic_id=topic_obj.id,
+        memory_text=cleaned,
+        memory_type=memory_type,
+    )
+    create_memory_version(
+        db=db,
+        topic_id=topic_obj.id,
+        version=topic_obj.summary_version or 1,
+        summary=topic_obj.summary,
+        change_reason="fact_ingested",
+    )
+    return event
+
 
 
 def get_memory_by_id(db: Session, memory_id: str):
@@ -164,6 +168,17 @@ def soft_delete_memory(db: Session, memory_id: str):
     return memory
 
 
+def soft_delete_memory_summary(db: Session, memory_id: str):
+    """Soft delete a topic document without committing the session."""
+    memory = get_memory_by_id(db, memory_id)
+    if memory is None:
+        return None
+    memory.is_deleted = True
+    memory.updated_at = datetime.utcnow()
+    db.flush()
+    return memory
+
+
 def update_memory(db: Session, memory_id: str, memory_text: str):
     """Update an existing topic document."""
     memory = get_memory_by_id(db, memory_id)
@@ -174,6 +189,31 @@ def update_memory(db: Session, memory_id: str, memory_text: str):
     memory.summary_version = (memory.summary_version or 1) + 1
     db.commit()
     db.refresh(memory)
+    return memory
+
+
+def update_memory_summary(
+    db: Session,
+    memory_id: str,
+    memory_text: str,
+    change_reason: str = "fact_updated",
+):
+    """Update an existing topic document without committing the session."""
+    memory = get_memory_by_id(db, memory_id)
+    if memory is None:
+        return None
+    memory.summary = _normalize_text(memory_text)
+    memory.updated_at = datetime.utcnow()
+    memory.evidence_count = (memory.evidence_count or 0) + 1
+    memory.summary_version = (memory.summary_version or 1) + 1
+    db.flush()
+    create_memory_version(
+        db=db,
+        topic_id=memory.id,
+        version=memory.summary_version,
+        summary=memory.summary,
+        change_reason=change_reason,
+    )
     return memory
 
 
@@ -194,7 +234,6 @@ def create_conflict(
     db: Session,
     user_id: str,
     topic_id: Optional[str],
-    event_id: Optional[str],
     conflict_type: str,
     existing_summary: Optional[str],
     incoming_content: Optional[str],
@@ -203,7 +242,6 @@ def create_conflict(
     conflict = MemoryConflictDB(
         user_id=user_id,
         topic_id=topic_id,
-        event_id=event_id,
         conflict_type=conflict_type,
         existing_summary=existing_summary,
         incoming_content=incoming_content,

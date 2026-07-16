@@ -53,10 +53,12 @@ def build_llm_context(
     history = _without_current_user_message(list(messages), current_message)
 
     full_context = [*system_block, *_memory_messages(long_term_memory), *history, *([current_message] if current_message else [])]
+
+    ### if message count is below threshold, or if there is no cached context, return full context and if not pass whole messages 
     has_cached_context = bool(
         (conversation_summary and conversation_summary.strip())
         or _format_facts(important_facts, config.important_fact_limit)
-    )
+    ) 
 
     if len(history) + (1 if current_message else 0) <= config.summary_threshold or not has_cached_context:
         return full_context

@@ -172,7 +172,7 @@ def personal_memory_node(state: ChatState, config):
             )
         )
 
-        if hasattr(decision, "model_dump"):
+        if hasattr(decision, "model_dump"): ## for logging 
             logger.debug("Personal memory structured response: %s", decision.model_dump())
         else:
             logger.debug("Personal memory structured response: %r", decision)
@@ -204,7 +204,7 @@ def personal_memory_node(state: ChatState, config):
     else:
         logger.debug("Skipping memory storage because should_store=False or facts=[]")
 
-    memories = retrieve_user_memories(user_id=user_id)
+    memories = retrieve_user_memories(user_id=user_id, query=query)
     personal_context = [m.memory_text for m in memories]
 
     if personal_context:

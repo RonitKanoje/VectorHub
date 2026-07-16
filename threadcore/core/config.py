@@ -121,6 +121,11 @@ class Settings(BaseSettings):
         validation_alias="CONTEXT_IMPORTANT_FACT_LIMIT",
     )
 
+    personal_memory_candidate_score_threshold: float = Field(
+        default=0.7,
+        validation_alias="PERSONAL_MEMORY_CANDIDATE_SCORE_THRESHOLD",
+    )
+
     log_level: str = Field(
         default="DEBUG",
         validation_alias="LOG_LEVEL",

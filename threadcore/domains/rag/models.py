@@ -24,26 +24,6 @@ class ThreadDB(Base):
     datasets = relationship("DatasetDB", back_populates="thread", cascade="all, delete-orphan")
 
 
-class UserMemoryDB(Base):
-    """Legacy compatibility model retained for migration safety."""
-    __tablename__ = "user_memory_legacy"
-
-    id = Column(
-        String,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )
-    user_id = Column(String, nullable=False, index=True)
-    memory_type = Column(String, nullable=False, default="general")
-    memory_text = Column(Text, nullable=False)
-    is_deleted = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-    )
-
 
 class MemoryTopicDB(Base):
     """Durable topic document storing consolidated long-term memory."""
@@ -57,7 +37,6 @@ class MemoryTopicDB(Base):
     status = Column(String, nullable=False, default="active")
     is_deleted = Column(Boolean, nullable=False, default=False)
     evidence_count = Column(Integer, nullable=False, default=0)
-    confidence_score = Column(Integer, nullable=False, default=0)
     metadata_json = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
@@ -129,7 +108,6 @@ class MemoryConflictDB(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False, index=True)
     topic_id = Column(String, nullable=True, index=True)
-    event_id = Column(String, nullable=True, index=True)
     conflict_type = Column(String, nullable=False)
     existing_summary = Column(Text, nullable=True)
     incoming_content = Column(Text, nullable=True)

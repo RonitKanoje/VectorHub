@@ -6,14 +6,12 @@ from threadcore.domains.rag.models import ( ## when we import models basically w
     MemoryTopicEvidenceDB,
     MemoryTopicVersionDB,
     ThreadDB,
-    UserMemoryDB,
 )
 from threadcore.domains.analyst.models import DatasetDB
 
 # Re-export models for backward compatibility
 __all__ = [
     "ThreadDB",
-    "UserMemoryDB",
     "MemoryTopicDB",
     "MemoryEventDB",
     "MemoryTopicEvidenceDB",

@@ -1,7 +1,4 @@
-"""Chat state and data schemas for the conversation graph."""
-
 from typing import Annotated, Literal
-
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -56,8 +53,34 @@ class PersonalMemoryDecision(BaseModel):
     )
 
 
+class MemoryReconciliationDecision(BaseModel):
+    """LLM structured output for reconciling an incoming memory with an existing one."""
+
+    action: Literal["ignore", "create", "replace", "merge", "delete"] = Field(
+        description=(
+            "How the personal memory should evolve: ignore, create, replace, "
+            "merge, or delete."
+        )
+    )
+    updated_summary: str | None = Field(
+        default=None,
+        description=(
+            "Final memory summary after reconciliation. Required for create, "
+            "replace, and merge. Optional for ignore and delete."
+        ),
+    )
+    # confidence: float = Field(
+    #     ge=0.0,
+    #     le=1.0,
+    #     description="Model confidence in the selected reconciliation action.",
+    # )
+    # reason: str = Field(
+    #     description="Concise explanation of why the selected action was chosen."
+    # )
+
+
 class ChatState(TypedDict):
-    """State management for the conversation graph."""
+
     user_message: str
     route: str
     messages: Annotated[list[BaseMessage], add_messages]

@@ -90,6 +90,8 @@ def build_chatbot(checkpointer):
     )
 
     return compiled
+
+
 def normalize_content(content):
     if isinstance(content, str):
         return content

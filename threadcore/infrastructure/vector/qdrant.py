@@ -17,6 +17,9 @@ from threadcore.services.rag.gemini_embeddings import GeminiEmbeddingsAdapter
 
 embeddings = GeminiEmbeddingsAdapter(model_name="gemini-embedding-001")
 client = QdrantClient(url=settings.qdrant_url)
+_SPARSE_EMBEDDINGS_UNSET = object()
+_sparse_embeddings = _SPARSE_EMBEDDINGS_UNSET
+_vector_stores: dict[str, QdrantVectorStore] = {}
 
 
 def _get_embedding_dimension() -> int:
@@ -64,23 +67,48 @@ def _ensure_collection(collection_name: str) -> None:
         )
 
 
+def _get_sparse_embeddings():
+    global _sparse_embeddings
+
+    if _sparse_embeddings is _SPARSE_EMBEDDINGS_UNSET:
+        try:
+            _sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
+        except ImportError:
+            _sparse_embeddings = None
+
+    return _sparse_embeddings
+
+
 def create_vector_store(collection_name: str) -> QdrantVectorStore:
+    cached_store = _vector_stores.get(collection_name)
+    if cached_store is not None:
+        return cached_store
+
     _ensure_collection(collection_name)
 
-    try:
-        sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")
+    sparse_embeddings = _get_sparse_embeddings()
+    if sparse_embeddings is not None:
+        try:
+            vector_store = QdrantVectorStore(
+                client=client,
+                collection_name=collection_name,
+                embedding=embeddings,
+                sparse_embedding=sparse_embeddings,
+                retrieval_mode=RetrievalMode.HYBRID,
+            )
+        except ImportError:
+            vector_store = QdrantVectorStore(
+                client=client,
+                collection_name=collection_name,
+                embedding=embeddings,
+            )
 
-        return QdrantVectorStore(
+    else:
+        vector_store = QdrantVectorStore(
             client=client,
             collection_name=collection_name,
             embedding=embeddings,
-            sparse_embedding=sparse_embeddings,
-            retrieval_mode=RetrievalMode.HYBRID,
         )
 
-    except ImportError:
-        return QdrantVectorStore(
-            client=client,
-            collection_name=collection_name,
-            embedding=embeddings,
-        )
+    _vector_stores[collection_name] = vector_store
+    return vector_store
