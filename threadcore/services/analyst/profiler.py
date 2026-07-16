@@ -1,20 +1,5 @@
-"""
-profiler.py — lightweight dataset profiler.
-
-Called once when a file is uploaded (before the graph runs) to give the
-stream_analyst_response function an early-exit check and a cheap profile
-stored in state as `dataset_profile`.
-
-This is intentionally NOT a LangGraph node — it runs synchronously outside
-the graph so we can validate the file and populate state["dataset_profile"]
-before the first SSE chunk is ever sent.  The profile is also shown to the
-user immediately as a "file accepted" confirmation message.
-"""
-
 from __future__ import annotations
-
 import json
-
 import pandas as pd
 
 
@@ -86,8 +71,8 @@ def format_profile_message(profile: dict) -> str:
         )
         if len(profile["missing_pct"]) > 5:
             missing_summary += f" … +{len(profile['missing_pct']) - 5} more"
-        lines.append(f"- ⚠️ Missing values in: {missing_summary}")
+        lines.append(f"Missing values in: {missing_summary}")
     else:
-        lines.append("- ✅ No missing values detected")
+        lines.append("No missing values detected")
 
     return "\n".join(lines)

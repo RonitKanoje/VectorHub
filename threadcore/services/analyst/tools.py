@@ -18,7 +18,7 @@ _current_schema: dict | None = None
 
 
 def set_active_dataset(path: str, schema: dict) -> None:
-    """Called by the agent node before every LLM invocation."""
+   
     global _current_dataset_path, _current_schema
     _current_dataset_path = path
     _current_schema = schema
@@ -44,7 +44,6 @@ def _validate_columns(*cols: str | None) -> list[str]:
 # Tool 1 — dataset_summary_tool
 @tool
 def dataset_summary_tool() -> str:
-    """Return a JSON summary of the active dataset, including shape, dtypes, null counts, and basic descriptive statistics."""
    
     df = _load_df()
 
@@ -67,7 +66,6 @@ def dataset_summary_tool() -> str:
 # Tool 2 — pandas_query_tool
 @tool
 def pandas_query_tool(query: str) -> str:
-    """Execute a pandas query on the active dataset and return the first 100 rows as a string."""
     
     bad_cols = []
     if _current_schema:
@@ -101,7 +99,7 @@ def visualization_tool(
     title: Optional[str] = None,
     summary: Optional[str] = None,
 ) -> str:
-    """Generate a chart from the active dataset and return it as a base64-encoded PNG in JSON."""
+
     
     bad = _validate_columns(x_col, y_col, hue_col)
     if bad:
@@ -160,7 +158,7 @@ def statistical_tool(
     group_by: Optional[str] = None,
     agg_func: Literal["mean", "sum", "count", "median", "std", "min", "max"] = "mean",
 ) -> str:
-    """Perform a statistical operation on the active dataset and return the result as JSON."""
+    
     
     bad = _validate_columns(column, group_by)
     if bad:

@@ -2,10 +2,7 @@ from typing import Any
 
 
 def build_schema_system_prompt(schema: dict[str, Any]) -> str:
-    """
-    Builds the system prompt for the analyst ReAct agent, injecting the full dataset schema
-    so the LLM knows what columns are available before calling tools.
-    """
+ 
     col_lines = "\n".join(
         f"{col} ({schema['dtypes'].get(col, '?')})  "
         f"nulls={schema['null_counts'].get(col, 0)}  "
