@@ -10,6 +10,7 @@ from threadcore.services.analyst.state import AnalystState
 from threadcore.services.analyst.preprocess import run_preprocessing
 from threadcore.services.analyst.tools import (
     ANALYST_TOOLS,
+    reset_active_dataset,
     set_active_dataset,
 )
 from threadcore.services.analyst.prompts import (
@@ -50,7 +51,7 @@ def _build_df_schema(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def _execute_tool_call(tool_call: dict) -> str:
+def _execute_tool_call(tool_call: dict, dataset_path: str, schema: dict) -> str:
     """Dispatch a single tool_call dict to the matching LangChain tool."""
     name = tool_call["name"]
     args = tool_call.get("args", {})
@@ -59,10 +60,13 @@ def _execute_tool_call(tool_call: dict) -> str:
     if name not in tool_map:
         return f"ERROR — unknown tool '{name}'."
 
+    context_token = set_active_dataset(dataset_path, schema)
     try:
         return tool_map[name].invoke(args)
     except Exception as exc:
         return f"Tool '{name}' raised an error: {exc}"
+    finally:
+        reset_active_dataset(context_token)
 
 
 def _content_for_llm_tool_message(tool_name: str, content: str) -> str:
@@ -155,9 +159,6 @@ async def analyst_agent(state: AnalystState) -> dict:
     schema: dict = state["df_schema"]
     dataset_path: str = state["dataset_path"]
 
-    # Register the active dataset + schema in tools module
-    set_active_dataset(dataset_path, schema)
-
     #  retrieve latest user question 
     user_question = "Provide a comprehensive analysis of this dataset."
     for msg in reversed(state.get("messages", [])):
@@ -191,7 +192,7 @@ async def analyst_agent(state: AnalystState) -> dict:
 
         # Execute every tool call the LLM requested
         for tc in response.tool_calls:
-            result_str = _execute_tool_call(tc)
+            result_str = _execute_tool_call(tc, dataset_path, schema)
             tool_outputs.append({"tool": tc["name"], "result": result_str})
 
             tool_message = ToolMessage(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import base64
+from contextvars import ContextVar, Token
 import json
 import os
 from io import BytesIO
@@ -12,38 +13,57 @@ import seaborn as sns
 from langchain_core.tools import tool
 
 
+DatasetContext = tuple[str, dict]
 
-_current_dataset_path: str | None = None
-_current_schema: dict | None = None
+_dataset_context: ContextVar[DatasetContext | None] = ContextVar(
+    "analyst_dataset_context",
+    default=None,
+)
 
 
-def set_active_dataset(path: str, schema: dict) -> None:
-   
-    global _current_dataset_path, _current_schema
-    _current_dataset_path = path
-    _current_schema = schema
+def set_active_dataset(path: str, schema: dict) -> Token[DatasetContext | None]:
+    return _dataset_context.set((path, schema))
+
+
+def reset_active_dataset(token: Token[DatasetContext | None]) -> None:
+    _dataset_context.reset(token)
+
+
+def _get_active_context() -> DatasetContext:
+    context = _dataset_context.get()
+    if context is None:
+        raise ValueError("No active dataset. Upload a CSV/Excel file first.")
+    return context
+
+
+def _get_active_schema() -> dict | None:
+    context = _dataset_context.get()
+    return context[1] if context else None
 
 
 def _load_df() -> pd.DataFrame:
-    if not _current_dataset_path or not os.path.exists(_current_dataset_path):
+    dataset_path, _ = _get_active_context()
+    if not os.path.exists(dataset_path):
         raise ValueError("No active dataset. Upload a CSV/Excel file first.")
     return (
-        pd.read_csv(_current_dataset_path, encoding="latin1")
-        if _current_dataset_path.endswith(".csv")
-        else pd.read_excel(_current_dataset_path)
+        pd.read_csv(dataset_path, encoding="latin1")
+        if dataset_path.endswith(".csv")
+        else pd.read_excel(dataset_path)
     )
 
 
 def _validate_columns(*cols: str | None) -> list[str]:
     
-    if _current_schema is None:
+    schema = _get_active_schema()
+    if schema is None:
         return []
-    known = set(_current_schema.get("columns", []))
+    known = set(schema.get("columns", []))
     return [c for c in cols if c and c not in known]
 
 # Tool 1 — dataset_summary_tool
 @tool
 def dataset_summary_tool() -> str:
+    """Return dataset shape, dtypes, null counts, and descriptive statistics."""
    
     df = _load_df()
 
@@ -66,10 +86,12 @@ def dataset_summary_tool() -> str:
 # Tool 2 — pandas_query_tool
 @tool
 def pandas_query_tool(query: str) -> str:
+    """Filter the active dataset with a pandas df.query expression."""
     
     bad_cols = []
-    if _current_schema:
-        known = set(_current_schema.get("columns", []))
+    schema = _get_active_schema()
+    if schema:
+        known = set(schema.get("columns", []))
         tokens = query.replace("(", " ").replace(")", " ").split()
         candidates = [t.strip('"\'') for t in tokens if t.strip('"\'').isidentifier()]
         bad_cols = [c for c in candidates if c not in known and not c[0].isdigit()]
@@ -77,7 +99,7 @@ def pandas_query_tool(query: str) -> str:
     if bad_cols:
         return (
             f"ERROR — unknown column(s): {bad_cols}.\n"
-            f"Available columns: {_current_schema.get('columns', [])}"
+            f"Available columns: {schema.get('columns', []) if schema else 'unknown'}"
         )
 
     try:
@@ -99,13 +121,15 @@ def visualization_tool(
     title: Optional[str] = None,
     summary: Optional[str] = None,
 ) -> str:
+    """Generate a chart for the active dataset and return it as JSON."""
 
     
     bad = _validate_columns(x_col, y_col, hue_col)
     if bad:
+        schema = _get_active_schema()
         return (
             f"ERROR — unknown column(s): {bad}.\n"
-            f"Available columns: {_current_schema.get('columns', []) if _current_schema else 'unknown'}"
+            f"Available columns: {schema.get('columns', []) if schema else 'unknown'}"
         )
 
     try:
@@ -158,13 +182,15 @@ def statistical_tool(
     group_by: Optional[str] = None,
     agg_func: Literal["mean", "sum", "count", "median", "std", "min", "max"] = "mean",
 ) -> str:
+    """Run a statistical operation on the active dataset."""
     
     
     bad = _validate_columns(column, group_by)
     if bad:
+        schema = _get_active_schema()
         return (
             f"ERROR — unknown column(s): {bad}.\n"
-            f"Available columns: {_current_schema.get('columns', []) if _current_schema else 'unknown'}"
+            f"Available columns: {schema.get('columns', []) if schema else 'unknown'}"
         )
 
     try:
