@@ -1,16 +1,11 @@
 import json
 import logging
-import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 from threadcore.domains.rag.models import (
     MemoryConflictDB,
-    MemoryEventDB,
     MemoryTopicDB,
-    MemoryTopicEvidenceDB,
-    MemoryTopicVersionDB,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,68 +52,13 @@ def get_memories_by_ids(db: Session, user_id: str, memory_ids: list[str]):
     )
 
 
-def create_memory_event(
-    db: Session,
-    user_id: str,
-    topic_id: str,
-    memory_text: str,
-    memory_type: str = "general",
-):
-    """Create an atomic memory event for a topic."""
-    cleaned = _normalize_text(memory_text)
-    if not cleaned:
-        return None
-
-    event = MemoryEventDB(
-        user_id=user_id,
-        topic_id=topic_id,
-        event_type="fact",
-        content=cleaned,
-        confidence=80,
-        status="consolidated",
-        payload_json=json.dumps({"memory_type": memory_type}),
-    )
-    db.add(event)
-    db.flush()
-
-    evidence = MemoryTopicEvidenceDB(
-        topic_id=topic_id,
-        event_id=event.id,
-        strength=1,
-        source_kind="extraction",
-        evidence_excerpt=cleaned,
-    )
-    db.add(evidence)
-    return event
-
-
-def create_memory_version(
-    db: Session,
-    topic_id: str,
-    version: int,
-    summary: str,
-    change_reason: str = "fact_ingested",
-):
-    """Create a topic version snapshot."""
-    snapshot = MemoryTopicVersionDB(
-        topic_id=topic_id,
-        version=version,
-        summary=_normalize_text(summary),
-        change_reason=change_reason,
-        created_by="memory_service",
-    )
-    db.add(snapshot)
-    db.flush()
-    return snapshot
-
-
 def create_memory(
     db: Session,
     user_id: str,
     memory_text: str,
     memory_type: str = "general",
 ):
-    """Create a topic document and the atomic event that led to it."""
+    """Create a topic document."""
 
     cleaned = _normalize_text(memory_text)
     if not cleaned:
@@ -134,22 +74,7 @@ def create_memory(
     )
     db.add(topic_obj)
     db.flush()
-    event = create_memory_event(
-        db=db,
-        user_id=user_id,
-        topic_id=topic_obj.id,
-        memory_text=cleaned,
-        memory_type=memory_type,
-    )
-    create_memory_version(
-        db=db,
-        topic_id=topic_obj.id,
-        version=topic_obj.summary_version or 1,
-        summary=topic_obj.summary,
-        change_reason="fact_ingested",
-    )
-    return event
-
+    return topic_obj
 
 
 def get_memory_by_id(db: Session, memory_id: str):
@@ -196,7 +121,6 @@ def update_memory_summary(
     db: Session,
     memory_id: str,
     memory_text: str,
-    change_reason: str = "fact_updated",
 ):
     """Update an existing topic document without committing the session."""
     memory = get_memory_by_id(db, memory_id)
@@ -207,27 +131,8 @@ def update_memory_summary(
     memory.evidence_count = (memory.evidence_count or 0) + 1
     memory.summary_version = (memory.summary_version or 1) + 1
     db.flush()
-    create_memory_version(
-        db=db,
-        topic_id=memory.id,
-        version=memory.summary_version,
-        summary=memory.summary,
-        change_reason=change_reason,
-    )
     return memory
 
-
-def search_memories(db: Session, user_id: str, query: str):
-    """Search topic summaries for a user."""
-    return (
-        db.query(MemoryTopicDB)
-        .filter(
-            MemoryTopicDB.user_id == user_id,
-            MemoryTopicDB.is_deleted == False,
-            MemoryTopicDB.summary.ilike(f"%{query}%"),
-        )
-        .all()
-    )
 
 
 def create_conflict(

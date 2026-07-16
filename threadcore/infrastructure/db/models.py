@@ -1,10 +1,7 @@
 from threadcore.infrastructure.db.session import engine, Base
 from threadcore.domains.rag.models import ( ## when we import models basically we are executing the model definitions and registering them with SQLAlchemy's metadata(Base). This is necessary for creating tables in the database.
     MemoryConflictDB,
-    MemoryEventDB,
     MemoryTopicDB,
-    MemoryTopicEvidenceDB,
-    MemoryTopicVersionDB,
     ThreadDB,
 )
 from threadcore.domains.analyst.models import DatasetDB
@@ -13,9 +10,6 @@ from threadcore.domains.analyst.models import DatasetDB
 __all__ = [
     "ThreadDB",
     "MemoryTopicDB",
-    "MemoryEventDB",
-    "MemoryTopicEvidenceDB",
-    "MemoryTopicVersionDB",
     "MemoryConflictDB",
     "DatasetDB",
     "init_db",
@@ -27,4 +21,3 @@ def init_db() -> None:
     Safe to call on every application startup.
     """
     Base.metadata.create_all(bind=engine) ## creating all registered tables inside base
-

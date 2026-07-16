@@ -29,7 +29,7 @@ class MemoryTopicDB(Base):
     """Durable topic document storing consolidated long-term memory."""
     __tablename__ = "memory_topics"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4())) ### Primary key and it gives default indexing
     user_id = Column(String, nullable=False, index=True)
     title = Column(String, nullable=False)
     summary = Column(Text, nullable=False)
@@ -52,53 +52,6 @@ class MemoryTopicDB(Base):
     @property
     def memory_text(self) -> str:
         return self.summary
-
-
-class MemoryEventDB(Base):
-    """Atomic memory events captured from chat turns before consolidation."""
-    __tablename__ = "memory_events"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, nullable=False, index=True)
-    thread_id = Column(String, nullable=True, index=True)
-    topic_id = Column(String, nullable=True, index=True)
-    event_type = Column(String, nullable=False, default="fact")
-    content = Column(Text, nullable=False)
-    confidence = Column(Integer, nullable=False, default=0)
-    source_role = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="buffered")
-    payload_json = Column(Text, nullable=True)
-    version = Column(Integer, nullable=False, default=1)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class MemoryTopicEvidenceDB(Base):
-    """Links atomic events to consolidated topic documents."""
-    __tablename__ = "memory_topic_evidence"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    topic_id = Column(String, nullable=False, index=True)
-    event_id = Column(String, nullable=False, index=True)
-    strength = Column(Integer, nullable=False, default=1)
-    source_kind = Column(String, nullable=False, default="extraction")
-    evidence_excerpt = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    last_used_at = Column(DateTime(timezone=True), nullable=True)
-
-
-class MemoryTopicVersionDB(Base):
-    """Stores topic-document revisions for rollback and auditing."""
-    __tablename__ = "memory_topic_versions"
-
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    topic_id = Column(String, nullable=False, index=True)
-    version = Column(Integer, nullable=False)
-    summary = Column(Text, nullable=False)
-    change_reason = Column(String, nullable=True)
-    merged_from_topic_ids = Column(Text, nullable=True)
-    split_from_topic_id = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    created_by = Column(String, nullable=True)
 
 
 class MemoryConflictDB(Base):

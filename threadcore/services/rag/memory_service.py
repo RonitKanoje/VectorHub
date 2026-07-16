@@ -8,7 +8,6 @@ from threadcore.core.config import settings
 from threadcore.domains.rag.repositories.memory_repository import (
     create_conflict,
     create_memory,
-    create_memory_event,
     get_memories_by_ids,
     get_memory_by_id,
     get_memories_for_user,
@@ -41,10 +40,6 @@ def _memory_document(memory) -> Document:
             "summary_version": memory.summary_version,
         },
     )
-
-
-def _index_memory(memory) -> None:
-    _index_memories([memory])
 
 
 def _index_memories(memories) -> None:
@@ -228,15 +223,13 @@ def store_user_memories(user_id: str, memories: list[str]):
 
             if action == "create" or candidate is None:
                 summary = next_summary or normalized
-                event = create_memory(
+                stored_memory = create_memory(
                     db=db,
                     user_id=user_id,
                     memory_text=summary,
                 )
-                if event is None:
+                if stored_memory is None:
                     continue
-
-                stored_memory = get_memory_by_id(db=db, memory_id=event.topic_id)
             elif action in {"replace", "merge"}:
                 if not next_summary:
                     logger.warning(
@@ -257,15 +250,7 @@ def store_user_memories(user_id: str, memories: list[str]):
                     db=db,
                     memory_id=candidate.id,
                     memory_text=next_summary,
-                    change_reason=f"memory_{action}",
                 )
-                if stored_memory is not None:
-                    create_memory_event(
-                        db=db,
-                        user_id=user_id,
-                        topic_id=stored_memory.id,
-                        memory_text=normalized,
-                    )
             else:
                 logger.warning(
                     "Unsupported memory reconciliation action: %s",
@@ -283,7 +268,7 @@ def store_user_memories(user_id: str, memories: list[str]):
                 if operation == "delete":
                     _delete_memory_vector(payload)
                 else:
-                    _index_memory(payload)
+                    _index_memories([payload])
             except Exception:
                 logger.exception("Failed to synchronize personal memory vector")
     except Exception:
