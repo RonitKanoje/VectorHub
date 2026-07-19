@@ -1,10 +1,11 @@
 import json
 import logging
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from langchain_core.messages import HumanMessage
+from threadcore.api.dependencies import get_current_user, CurrentUser
 from threadcore.infrastructure.db.session import get_db
 from threadcore.domains.analyst.models import DatasetDB
 from threadcore.services.analyst.profiler import profile_dataset
@@ -42,24 +43,19 @@ def sse(payload: dict) -> str:
 async def analyst_chat(
     request: AnalystChatRequest,
     req: Request,
-    x_user_id: str = Header(None),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not x_user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="X-User-Id header missing"
-        )
 
     # Ensure thread exists
-    thread = get_user_thread(db, request.thread_id, x_user_id)
+    thread = get_user_thread(db, request.thread_id, current_user.user_id)
 
     if thread is None:
         save_or_update_thread(
             db,
             request.thread_id,
             "New Analyst Chat",
-            x_user_id,
+            current_user.user_id,
             mode="analyst"
         )
 
@@ -74,7 +70,7 @@ async def analyst_chat(
         # resolve dataset
         dataset = (
             db.query(DatasetDB)
-            .filter_by(thread_id=request.thread_id, user_id=x_user_id)
+            .filter_by(thread_id=request.thread_id, user_id=current_user.user_id)
             .order_by(DatasetDB.created_at.desc())
             .first()
         )
@@ -97,7 +93,7 @@ async def analyst_chat(
             dataset_profile=dataset_profile,
         )
 
-        config = {"configurable": {"thread_id": f"analyst-{x_user_id}-{request.thread_id}"}}
+        config = {"configurable": {"thread_id": f"analyst-{current_user.user_id}-{request.thread_id}"}}
 
         # event stream
         async for event in analyst_app.astream_events(inputs, config=config, version="v2"):
@@ -160,18 +156,13 @@ async def analyst_chat(
 async def load_analyst_conv(
     thread_id: str,
     req: Request,
-    x_user_id: str = Header(None)
+    current_user: CurrentUser = Depends(get_current_user)
 ):
-    if not x_user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="X-User-Id header missing"
-        )
 
     analyst_app = getattr(req.app.state, "analyst_app", None)
 
     if not analyst_app:
         return {"messages": []}
 
-    messages = await load_analyst_conversation(analyst_app, thread_id, x_user_id)
+    messages = await load_analyst_conversation(analyst_app, thread_id, current_user.user_id)
     return {"messages": messages}

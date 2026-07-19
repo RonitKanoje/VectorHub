@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import config from "../config/config.js";
+import jwt from "jsonwebtoken";
 
 interface ThreadCoreOptions {
   method?: string;
@@ -16,6 +17,27 @@ interface ThreadCoreErrorResponse {
   message?: string;
 }
 
+function generateInternalToken(userId: string): string {
+  const secret = process.env.INTERNAL_API_SECRET;
+
+  if (!secret) {
+    throw new Error(
+      "INTERNAL_API_SECRET is not defined in environment variables",
+    );
+  }
+
+  return jwt.sign(
+    {
+      user_id: userId,
+      service: "express",
+    },
+    secret,
+    {
+      expiresIn: "90s",
+    },
+  );
+}
+
 export async function forwardToThreadCore(
   req: Request,
   res: Response,
@@ -23,12 +45,15 @@ export async function forwardToThreadCore(
   options: ThreadCoreOptions = {},
 ) {
   try {
+    const internalToken = generateInternalToken(req.userId!);
+
     const method = options.method || "GET";
+
     const response = await fetch(`${config.THREADCORE_URL}${endpoint}`, {
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-User-Id": req.userId || "",
+        Authorization: `Bearer ${internalToken}`,
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -39,6 +64,7 @@ export async function forwardToThreadCore(
     if (!response.ok && !data.message) {
       data.message = formatThreadCoreError(data);
     }
+
     if (!response.ok) {
       console.error(`ThreadCore ${method} ${endpoint} failed`, data);
     }
@@ -51,6 +77,7 @@ export async function forwardToThreadCore(
       error,
       cause: error instanceof Error ? error.cause : undefined,
     });
+
     return res.status(502).json({
       success: false,
       message: "FastAPI service is unavailable",
@@ -68,19 +95,22 @@ function parseResponseText(text: string) {
 
 function formatThreadCoreError(data: ThreadCoreErrorResponse) {
   if (Array.isArray(data?.detail)) {
-    const errors = [] as string[];
+    const errors: string[] = [];
 
     for (const item of data.detail) {
       const location = Array.isArray(item.loc) ? item.loc.join(".") : "request";
+
       errors.push(`${location}: ${item.msg}`);
     }
 
     return errors.join("; ");
-  } else if (typeof data?.detail === "string") {
-    return data.detail;
-  } else {
-    return "AI request failed";
   }
+
+  if (typeof data?.detail === "string") {
+    return data.detail;
+  }
+
+  return "AI request failed";
 }
 
 export async function forwardStreamToThreadCore(
@@ -90,12 +120,15 @@ export async function forwardStreamToThreadCore(
   options: ThreadCoreOptions = {},
 ) {
   try {
+    const internalToken = generateInternalToken(req.userId!);
+
     const method = options.method || "GET";
+
     const response = await fetch(`${config.THREADCORE_URL}${endpoint}`, {
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-User-Id": req.userId || "",
+        Authorization: `Bearer ${internalToken}`,
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -103,8 +136,11 @@ export async function forwardStreamToThreadCore(
     if (!response.ok) {
       const text = await response.text();
       const data = text ? parseResponseText(text) : {};
+
       data.message = formatThreadCoreError(data);
+
       console.error(`ThreadCore streaming ${method} ${endpoint} failed`, data);
+
       return res.status(response.status).json(data);
     }
 
@@ -117,15 +153,18 @@ export async function forwardStreamToThreadCore(
         res.write(chunk);
       }
     }
+
     res.end();
   } catch (error) {
     console.error("ThreadCore stream proxy failed:", error);
+
     if (!res.headersSent) {
       return res.status(502).json({
         success: false,
         message: "FastAPI service is unavailable for streaming",
       });
     }
+
     res.end();
   }
 }

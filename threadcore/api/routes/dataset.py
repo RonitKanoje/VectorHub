@@ -1,9 +1,10 @@
 import logging
 import os
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from threadcore.api.dependencies import get_current_user, CurrentUser
 from threadcore.infrastructure.db.session import get_db
 from threadcore.services.analyst.dataset_service import process_and_save_dataset
 from threadcore.services.rag.thread_service import (
@@ -25,16 +26,9 @@ class ProcessDatasetRequest(BaseModel):
 @router.post("/process_dataset")
 async def process_dataset(
     request: ProcessDatasetRequest,
-    x_user_id: str = Header(None),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    
-    if not x_user_id:
-        logger.error("Missing X-User-Id header")
-        raise HTTPException(
-            status_code=401,
-            detail="X-User-Id header missing"
-        )
 
 
     if os.path.exists(request.path):
@@ -54,7 +48,7 @@ async def process_dataset(
     thread = get_user_thread(
         db,
         request.thread_id,
-        x_user_id,
+        current_user.user_id,
     )
 
 
@@ -64,7 +58,7 @@ async def process_dataset(
             db,
             request.thread_id,
             "New Analyst Chat",
-            x_user_id,
+            current_user.user_id,
             mode="analyst",
         )
 
@@ -75,7 +69,7 @@ async def process_dataset(
             db=db,
             file_path=request.path,
             thread_id=request.thread_id,
-            user_id=x_user_id,
+            user_id=current_user.user_id,
             document_name=request.document_name,
         )
 

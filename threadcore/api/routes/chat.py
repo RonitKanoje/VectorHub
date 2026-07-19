@@ -1,12 +1,12 @@
 import json
 import logging
 import os
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langchain_core.messages import ToolMessage
 from sqlalchemy.orm import Session
-from threadcore.api.dependencies import ensure_thread_access, get_chatbot, get_current_user
+from threadcore.api.dependencies import ensure_thread_access, get_chatbot, get_current_user, CurrentUser
 from threadcore.api.schemas import ChatMessageRequest, ChatNameRequest, ThreadNameFromUploadRequest
 from threadcore.services.rag.thread_service import (
     save_or_update_thread,
@@ -22,34 +22,29 @@ router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
 
 
-def _resolve_user(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
-    """Get current user ID from header"""
-    return get_current_user(x_user_id=x_user_id)
-
-
 @router.post("/chat")
 async def chat(
     chat_message: ChatMessageRequest,
-    current_user: str = Depends(_resolve_user),
+    current_user: CurrentUser = Depends(get_current_user),
     chatbot=Depends(get_chatbot),
     db: Session = Depends(get_db),
 ):
     logger.info("Chat request received")
-    thread = get_user_thread(db, chat_message.thread_id, current_user)
+    thread = get_user_thread(db, chat_message.thread_id, current_user.user_id)
 
     if thread is None:
         save_or_update_thread(
             db,
             chat_message.thread_id,
             "New Chat",
-            current_user,
+            current_user.user_id,
             mode="chat"
         )
 
     config = {
         "configurable": {
             "thread_id": chat_message.thread_id,
-            "user_id": current_user,
+            "user_id": current_user.user_id,
         }
     }
 
@@ -198,11 +193,11 @@ async def chat(
 @router.get("/loadConv/{thread_id}")
 async def load_conv(
     thread_id: str,
-    current_user: str = Depends(_resolve_user),
+    current_user: CurrentUser = Depends(get_current_user),
     chatbot=Depends(get_chatbot),
     db: Session = Depends(get_db),
 ):
-    ensure_thread_access(db, thread_id, current_user)
+    ensure_thread_access(db, thread_id, current_user.user_id)
     messages = await load_conversation(chatbot, thread_id)
     return {"messages": messages} ### you will get messages in key value pair AI : "", Human : ""
 
@@ -210,14 +205,14 @@ async def load_conv(
 @router.post("/nameChat")
 async def name_chat(
     payload: ChatNameRequest, #message and thread_id
-    current_user: str = Depends(_resolve_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ensure_thread_access(db, payload.thread_id, current_user)
+    ensure_thread_access(db, payload.thread_id, current_user.user_id)
 
     try:
         title = title_from_message(HumanMessage(content=payload.message))
-        save_or_update_thread(db, payload.thread_id, title, current_user, mode="chat")
+        save_or_update_thread(db, payload.thread_id, title, current_user.user_id, mode="chat")
         return {"title": title}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="name_chat_failed") from exc
@@ -226,11 +221,11 @@ async def name_chat(
 @router.post("/nameThreadFromUpload")
 async def name_thread_from_upload(
     payload: ThreadNameFromUploadRequest,
-    current_user: str = Depends(_resolve_user),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
-        thread = get_user_thread(db, payload.thread_id, current_user)
+        thread = get_user_thread(db, payload.thread_id, current_user.user_id)
         
         # If thread already exists and is not named "New Chat", keep existing name
         if thread and thread.title and thread.title != "New Chat":
@@ -243,7 +238,7 @@ async def name_thread_from_upload(
         
         title = clean_name if clean_name else f"{payload.media.capitalize()} Upload"
 
-        save_or_update_thread(db, payload.thread_id, title, current_user, mode=thread.mode if thread else "chat")
+        save_or_update_thread(db, payload.thread_id, title, current_user.user_id, mode=thread.mode if thread else "chat")
         return {"title": title}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="name_thread_from_upload_failed") from exc

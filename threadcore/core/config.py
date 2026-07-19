@@ -17,6 +17,10 @@ class Settings(BaseSettings):
         validation_alias="SESSION_SECRET_KEY",
     )
 
+    internal_api_secret: str = Field(
+    validation_alias="INTERNAL_API_SECRET",
+    )
+
     # LangSmith
     langsmith_api_key: str | None = Field(
         default=None,
