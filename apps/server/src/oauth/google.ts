@@ -4,5 +4,5 @@ import config from "../config/config.js";
 export const google = new Google(
   config.GOOGLE_CWT_CLIENT_ID,
   config.GOOGLE_CWT_CLIENT_SECRET,
-  "http://localhost:3000/api/auth/google/callback",
+  config.GOOGLE_OAUTH_CALLBACK_URL,
 );

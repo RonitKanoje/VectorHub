@@ -2,6 +2,7 @@ import { ArrowUp, Mic, MicOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PlusButton from "./PlusButton";
 import type { MediaPayload } from "../types";
+import { WEBSOCKET_BASE_URL } from "../config/env";
 
 interface MessageInputProps {
   disabled?: boolean;
@@ -86,12 +87,7 @@ const MessageInput = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsHost =
-        window.location.hostname === "localhost"
-          ? "localhost:3000"
-          : window.location.host;
-      const ws = new WebSocket(`${wsProtocol}//${wsHost}`);
+      const ws = new WebSocket(WEBSOCKET_BASE_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {

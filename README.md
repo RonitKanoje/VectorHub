@@ -67,13 +67,15 @@ Create from `.env.example`. Provide credentials for PostgreSQL, Redis, Qdrant, L
 ### Node (`/apps/server/.env`)
 
 ```
-PORT=3001
-FASTAPI_INTERNAL_URL=http://localhost:8000
+PORT=<express-port>
+THREADCORE_URL=<threadcore-internal-url>
+CLIENT_URL=<client-origin>
+GOOGLE_OAUTH_CALLBACK_URL=<public-api-origin>/api/auth/google/callback
 JWT_SECRET=replace-me
 JWT_EXPIRES_IN=7d
-DATABASE_URL=postgresql://postgres:password@localhost:5432/threadcore
+DATABASE_URL=postgresql://<db-user>:<db-password>@<db-host>:<db-port>/<db-name>
 ```
 
 ## Security model
 
-FastAPI listens only on `localhost:8000` and trusts the `X-User-Id` header set by Express. **Never expose port 8000 to the public internet.** All public traffic goes through Express on port 3001.
+FastAPI must listen on a private internal URL configured through `THREADCORE_URL` and trusts the `X-User-Id` header set by Express. **Never expose the FastAPI service to the public internet.** All public traffic goes through Express on the configured `PORT`.

@@ -2,6 +2,7 @@ import asyncio
 import sys
 import psycopg
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 from threadcore.core.config import settings
 from psycopg_pool import AsyncConnectionPool
@@ -26,6 +27,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) ## c
 Base = declarative_base()  ## base class of all ORM
 
 
+def _psycopg_conninfo() -> str:
+    url = make_url(settings.database_url)
+    if url.get_backend_name() in {"postgresql", "postgres"}:
+        return url.set(drivername="postgresql").render_as_string(hide_password=False)
+    return settings.database_url
+
+
 def get_db():
     db = SessionLocal()   ## creating session
     try:
@@ -36,18 +44,13 @@ def get_db():
 
 def get_db_connection(autocommit: bool = True):
     return psycopg.connect(
-        host="localhost",
-        port=5432,
-        dbname=settings.db_name,
-        user=settings.db_user,
-        password=settings.db_password,
+        _psycopg_conninfo(),
         autocommit=autocommit,
     )
 
 # Pool handling 
 def get_async_db_pool():
     return AsyncConnectionPool(
-        conninfo=f"host=localhost port=5432 dbname={settings.db_name} user={settings.db_user} password={settings.db_password}",
+        conninfo=_psycopg_conninfo(),
         kwargs={"autocommit": True},
     )
-

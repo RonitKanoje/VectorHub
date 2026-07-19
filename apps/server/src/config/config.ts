@@ -9,6 +9,10 @@ const requiredEnvVars = [
   "GOOGLE_REFRESH_TOKEN",
   "GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_SECRET",
   "GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID",
+  "CLIENT_URL",
+  "THREADCORE_URL",
+  "PORT",
+  "GOOGLE_OAUTH_CALLBACK_URL",
 ] as const;
 
 for (const envVar of requiredEnvVars) {
@@ -27,10 +31,11 @@ const config = {
   GOOGLE_CWT_CLIENT_SECRET:
     process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_SECRET!,
   GOOGLE_CWT_CLIENT_ID: process.env.GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID!,
-  CLIENT_URL: process.env.CLIENT_URL,
-  THREADCORE_URL: process.env.THREADCORE_URL,
+  CLIENT_URL: process.env.CLIENT_URL!,
+  THREADCORE_URL: process.env.THREADCORE_URL!,
+  GOOGLE_OAUTH_CALLBACK_URL: process.env.GOOGLE_OAUTH_CALLBACK_URL!,
   NODE_ENV: process.env.NODE_ENV,
-  PORT: process.env.PORT,
+  PORT: process.env.PORT!,
 } as const;
 
 export default config;

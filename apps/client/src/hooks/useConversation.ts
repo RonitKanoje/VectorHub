@@ -6,6 +6,7 @@ import { getApiErrorMessage } from "../utils/errors";
 import type { ChatMessage, Thread } from "../types";
 import { store } from "../redux/store";
 import type { UseConversationReturn } from "../types";
+import { API_BASE_URL } from "../config/env";
 
 let counter = 0;
 function uniqueId(prefix: string) {
@@ -176,13 +177,11 @@ export function useConversation(): UseConversationReturn {
         const endpoint = isAnalystMode
           ? "/api/ai/analyst_chat"
           : "/api/ai/chat";
-        const baseURL = api.defaults.baseURL || "http://localhost:3000";
-
         // We intentionally use native fetch() instead of Axios here.
         // Axios traditionally downloads the whole response and its support for Server-Sent Events (SSE)
         // streams in the browser is difficult to handle reliably without losing chunks.
         // fetch() provides native stream readers which are essential for this streaming feature.
-        const response = await fetch(`${baseURL}${endpoint}`, {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

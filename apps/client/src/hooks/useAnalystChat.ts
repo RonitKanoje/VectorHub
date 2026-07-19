@@ -12,6 +12,7 @@ import {
 } from "../redux/features/analystSlice";
 import type { AppDispatch } from "../redux/store";
 import { store } from "../redux/store";
+import { API_BASE_URL } from "../config/env";
 
 /**
  * Encapsulates sending a message + reading the streamed SSE response
@@ -33,9 +34,7 @@ export const useAnalystChat = (token: string | null) => {
       dispatch(setIsSending(true));
 
       try {
-        const baseURL = api.defaults.baseURL || "http://localhost:3000";
-
-        const response = await fetch(`${baseURL}/api/ai/analyst_chat`, {
+        const response = await fetch(`${API_BASE_URL}/api/ai/analyst_chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -49,15 +49,6 @@ class Settings(BaseSettings):
         validation_alias="GROQ_MODEL",
     )
 
-    # ------------------------------------------------------------------
-    # KEEP THESE NAMES.
-    # Existing code uses:
-    # settings.gemini_api_key
-    # settings.gemini_memory_model
-    #
-    # During development they will read GROQ values instead.
-    # ------------------------------------------------------------------
-
     gemini_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices(
@@ -81,20 +72,11 @@ class Settings(BaseSettings):
     )
 
     # Infrastructure
-    qdrant_url: str = Field(
-        default="http://localhost:6333",
-        validation_alias="QDRANT_URL",
-    )
+    qdrant_url: str = Field(validation_alias="QDRANT_URL")
 
-    redis_host: str = Field(
-        default="127.0.0.1",
-        validation_alias="REDIS_HOST",
-    )
+    redis_host: str = Field(validation_alias="REDIS_HOST")
 
-    redis_port: int = Field(
-        default=6379,
-        validation_alias="REDIS_PORT",
-    )
+    redis_port: int = Field(validation_alias="REDIS_PORT")
 
     context_summary_threshold: int = Field(
         default=24,
