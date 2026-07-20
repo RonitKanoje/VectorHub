@@ -10,7 +10,7 @@ declare global {
       GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_SECRET?: string;
       GOOGLE_CONTINUE_WITH_GOOGLE_CLIENT_ID?: string;
       CLIENT_URL?: string;
-      THREADCORE_URL?: string;
+      AI_URL?: string;
       GOOGLE_OAUTH_CALLBACK_URL?: string;
       NODE_ENV?: string;
       PORT?: string;

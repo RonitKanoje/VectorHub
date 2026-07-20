@@ -1,2 +1,0 @@
-"""ThreadCore application package."""
-

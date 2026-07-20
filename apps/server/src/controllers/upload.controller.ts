@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import UploadedFile from "../models/uploadedFile.model.js";
 import { localStorageProvider } from "../services/storage/localStorage.js";
-import { forwardToThreadCore } from "../utils/threadcore.js";
+import { forwardToAI } from "../utils/ai.js";
 import { normalizeYoutubeInput } from "../utils/youtube.js";
 
 interface UploadBody {
@@ -68,7 +68,7 @@ export async function uploadMedia(
     const endpoint =
       media === "dataset" ? "/process_dataset" : "/process_media";
 
-    return await forwardToThreadCore(req, res, endpoint, {
+    return await forwardToAI(req, res, endpoint, {
       method: "POST",
       body: payload,
     });

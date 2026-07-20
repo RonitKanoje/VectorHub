@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import {
-  forwardToThreadCore,
-  forwardStreamToThreadCore,
-} from "../utils/threadcore.js";
+  forwardToAI,
+  forwardStreamToAI,
+} from "../utils/ai.js";
 
 interface ChatBody {
   content?: string;
@@ -14,15 +14,15 @@ interface ChatBody {
 
 export async function getThreads(req: Request, res: Response) {
   const mode = req.query.mode || "chat";
-  return forwardToThreadCore(req, res, `/threads?mode=${mode}`);
+  return forwardToAI(req, res, `/threads?mode=${mode}`);
 }
 
 export async function loadConversation(req: Request, res: Response) {
-  return forwardToThreadCore(req, res, `/loadConv/${req.params.threadId}`);
+  return forwardToAI(req, res, `/loadConv/${req.params.threadId}`);
 }
 
 export async function loadAnalystConversation(req: Request, res: Response) {
-  return forwardToThreadCore(
+  return forwardToAI(
     req,
     res,
     `/load_analyst_conv/${req.params.threadId}`,
@@ -30,7 +30,7 @@ export async function loadAnalystConversation(req: Request, res: Response) {
 }
 
 export async function getIngestionStatus(req: Request, res: Response) {
-  return forwardToThreadCore(
+  return forwardToAI(
     req,
     res,
     `/ingestion_status/${req.params.threadId}`,
@@ -38,12 +38,12 @@ export async function getIngestionStatus(req: Request, res: Response) {
 }
 
 export async function getThreadStatus(req: Request, res: Response) {
-  return forwardToThreadCore(req, res, `/thread_status/${req.params.threadId}`);
+  return forwardToAI(req, res, `/thread_status/${req.params.threadId}`);
 }
 
 export async function chat(req: Request<{}, {}, ChatBody>, res: Response) {
   try {
-    return await forwardStreamToThreadCore(req, res, "/chat", {
+    return await forwardStreamToAI(req, res, "/chat", {
       method: "POST",
       body: buildChatPayload(req.body),
     });
@@ -62,7 +62,7 @@ export async function analystChat(
   res: Response,
 ) {
   try {
-    return await forwardStreamToThreadCore(req, res, "/analyst_chat", {
+    return await forwardStreamToAI(req, res, "/analyst_chat", {
       method: "POST",
       body: {
         message: req.body.message,
@@ -80,14 +80,14 @@ export async function analystChat(
 }
 
 export async function nameChat(req: Request, res: Response) {
-  return forwardToThreadCore(req, res, "/nameChat", {
+  return forwardToAI(req, res, "/nameChat", {
     method: "POST",
     body: req.body,
   });
 }
 
 export async function nameThreadFromUpload(req: Request, res: Response) {
-  return forwardToThreadCore(req, res, "/nameThreadFromUpload", {
+  return forwardToAI(req, res, "/nameThreadFromUpload", {
     method: "POST",
     body: req.body,
   });
