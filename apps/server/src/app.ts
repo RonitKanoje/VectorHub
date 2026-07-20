@@ -23,6 +23,6 @@ app.use(cookieParser());
 app.use("/api/auth", authRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/upload", uploadRouter);
-app.use("/api/ai", transcribeRouter);
+app.use("/api/transcript", transcribeRouter);
 
 export default app;

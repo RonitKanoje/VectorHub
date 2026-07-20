@@ -3,6 +3,7 @@ import multer from "multer";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 import express from "express";
 import "../config/env.js";
+import { transcribeLimiter } from "../rate-limit/transcribe.rate-limit.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const upload = multer({ storage: multer.memoryStorage() });
@@ -10,7 +11,7 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-router.post("/transcribe", upload.single("audio"), async (req, res) => {
+router.post("/transcribe", transcribeLimiter, upload.single("audio"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No audio file provided" });

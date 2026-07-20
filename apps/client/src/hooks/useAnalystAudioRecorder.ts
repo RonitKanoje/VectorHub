@@ -7,7 +7,7 @@ interface UseAnalystAudioRecorderOptions {
 }
 
 /**
- * Encapsulates mic capture -> /api/ai/transcribe -> onTranscript callback.
+ * Encapsulates mic capture -> /api/transcript/transcribe -> onTranscript callback.
  * Keeps Analyst.tsx free of MediaRecorder plumbing.
  */
 export const useAnalystAudioRecorder = ({ onTranscript }: UseAnalystAudioRecorderOptions) => {
@@ -34,7 +34,7 @@ export const useAnalystAudioRecorder = ({ onTranscript }: UseAnalystAudioRecorde
           const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
           const fd = new FormData();
           fd.append("audio", blob, "recording.webm");
-          const res = await api.post<{ text: string }>("/api/ai/transcribe", fd, {
+          const res = await api.post<{ text: string }>("/api/transcript/transcribe", fd, {
             headers: { "Content-Type": "multipart/form-data" },
           });
           if (res.data.text) onTranscript(res.data.text);

@@ -27,7 +27,6 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> CurrentUser:
 
-
     try:
         payload = jwt.decode(
             credentials.credentials,
