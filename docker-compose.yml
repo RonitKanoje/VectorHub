@@ -1,0 +1,137 @@
+services:
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+    container_name: vectorhub-client
+    ports:
+      - "5173:80"
+    env_file:
+      - ./.env.docker
+    depends_on:
+      server:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vectorhub-network
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: vectorhub-server
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./apps/server/.env.docker
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vectorhub-network
+
+  ai:
+    build:
+      context: .
+      dockerfile: ai/Dockerfile
+    container_name: vectorhub-ai
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env.docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vectorhub-network
+
+  postgres:
+    image: postgres:17
+    container_name: vectorhub-postgres
+
+    restart: unless-stopped
+
+    env_file:
+      - ./.env.docker
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - vectorhub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: vectorhub-redis
+
+    restart: unless-stopped
+
+    env_file:
+      - ./.env.docker
+
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - vectorhub-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: vectorhub-qdrant
+
+    restart: unless-stopped
+
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+    networks:
+      - vectorhub-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+
+networks:
+  vectorhub-network:
+    driver: bridge

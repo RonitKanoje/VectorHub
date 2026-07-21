@@ -183,7 +183,7 @@ const Analyst = () => {
       />
 
       <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-950">
-        <Header title="Analyst Mode" isAnalystMode={true} />
+        <Header title="Analyst Mode" />
 
         <div
           className={`flex flex-1 flex-col overflow-hidden${

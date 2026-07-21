@@ -1,29 +1,31 @@
 import rateLimit from "express-rate-limit";
-import { redisStore } from "./store.js";
+import { createRedisStore } from "./store.js";
 
 interface RateLimiterOptions {
-    windowMs: number;
-    max: number;
-    message: string;
+  windowMs: number;
+  max: number;
+  message: string;
+  prefix: string;
 }
 
 export function createRateLimiter({
+  windowMs,
+  max,
+  message,
+  prefix,
+}: RateLimiterOptions) {
+  return rateLimit({
     windowMs,
     max,
-    message,
-}: RateLimiterOptions) {
-    return rateLimit({
-        windowMs,
-        max,
 
-        store: redisStore,
+    store: createRedisStore(prefix),
 
-        standardHeaders: true,
-        legacyHeaders: false,
+    standardHeaders: true,
+    legacyHeaders: false,
 
-        message: {
-            success: false,
-            message,
-        },
-    });
+    message: {
+      success: false,
+      message,
+    },
+  });
 }

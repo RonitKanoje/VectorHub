@@ -1,23 +1,22 @@
-# Build 
+# Build Stage
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY apps/server/package*.json ./
 
 RUN npm ci
 
-COPY . .
+COPY apps/server .
 
 RUN npm run build
 
-
-# Runtime 
+# Runtime Stage
 FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY apps/server/package*.json ./
 
 RUN npm ci --omit=dev
 
@@ -25,4 +24,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["npm", "dist/server.js"]
+CMD ["node", "dist/server.js"]
