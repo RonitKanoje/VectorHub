@@ -9,8 +9,6 @@ services:
     container_name: vectorhub-client
     ports:
       - "5173:80"
-    env_file:
-      - ./apps/client/.env.docker
     depends_on:
       server:
         condition: service_started
@@ -26,7 +24,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ./apps/server/.env.docker
+      - ./.env.docker
     volumes:
       - uploads_data:/app/data/runtime/uploads
     depends_on:
