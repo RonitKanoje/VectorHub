@@ -5,7 +5,7 @@ services:
       dockerfile: apps/client/Dockerfile
       args:
         # Vite bakes VITE_* vars at build time — pass it in from the env file
-        VITE_API_BASE_URL: "http://localhost:3000"
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     container_name: vectorhub-client
     ports:
       - "5173:80"

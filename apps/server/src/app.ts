@@ -9,9 +9,11 @@ import config from "./config/config.js";
 
 const app = express();
 
+const allowedOrigins = config.CLIENT_URL.split(",").map((url) => url.trim());
+
 app.use(
   cors({
-    origin: config.CLIENT_URL,
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   }),
 );

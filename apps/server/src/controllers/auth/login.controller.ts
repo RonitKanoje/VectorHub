@@ -86,7 +86,8 @@ export async function login(req: Request<{}, {}, LoginBody>, res: Response) {
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      sameSite: "strict",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -181,8 +182,8 @@ export async function refreshToken(req: Request, res: Response) {
 
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

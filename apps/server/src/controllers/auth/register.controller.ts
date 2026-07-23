@@ -100,8 +100,8 @@ export async function register(
 
     res.cookie("verificationToken", verificationTokenValue, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
       maxAge: 10 * 60 * 1000,
     });
 
@@ -208,8 +208,8 @@ export async function verifyEmail(
     res.clearCookie("verificationToken");
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
