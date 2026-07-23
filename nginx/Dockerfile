@@ -1,6 +1,4 @@
-# ---------------------------------------------------------------
-# Stage 1 — Build the React app
-# ---------------------------------------------------------------
+# Build the React app
 FROM node:22-alpine AS client-builder
 
 WORKDIR /app
@@ -14,9 +12,7 @@ RUN npm ci
 COPY apps/client .
 RUN npm run build
 
-# ---------------------------------------------------------------
-# Stage 2 — Nginx reverse proxy
-# ---------------------------------------------------------------
+# Nginx reverse proxy
 FROM nginx:alpine
 
 # Remove default config

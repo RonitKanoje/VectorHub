@@ -5,13 +5,22 @@ services:
       dockerfile: nginx/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+
     container_name: vectorhub-nginx
+
     ports:
       - "80:80"
+      - "443:443"
+
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
     depends_on:
       server:
         condition: service_started
+
     restart: unless-stopped
+
     networks:
       - vectorhub-network
 
