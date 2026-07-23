@@ -28,6 +28,6 @@ COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy the compiled React static files from the builder
 COPY --from=client-builder /app/dist /usr/share/nginx/html
 
-EXPOSE 80
+EXPOSE 80 443
 
 CMD ["nginx", "-g", "daemon off;"]
