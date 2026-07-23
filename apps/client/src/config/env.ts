@@ -2,14 +2,10 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-function getRequiredEnv(name: string): string {
-  const value = import.meta.env[name];
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-  if (!value) {
-    throw new Error(`${name} is not defined`);
-  }
-
-  return trimTrailingSlash(value);
+if (!rawApiBaseUrl) {
+  throw new Error("VITE_API_BASE_URL is not defined");
 }
 
 function toWebSocketUrl(baseUrl: string): string {
@@ -22,6 +18,6 @@ function toWebSocketUrl(baseUrl: string): string {
   return trimTrailingSlash(url.toString());
 }
 
-export const API_BASE_URL = getRequiredEnv("VITE_API_BASE_URL");
+export const API_BASE_URL = trimTrailingSlash(rawApiBaseUrl);
 export const GOOGLE_AUTH_URL = `${API_BASE_URL}/api/auth/google`;
 export const WEBSOCKET_BASE_URL = toWebSocketUrl(API_BASE_URL);

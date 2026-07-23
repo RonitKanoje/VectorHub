@@ -9,6 +9,7 @@ import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PublicOnlyRoute from "./components/PublicOnlyRoute";
 import { setCredentials, finishLoading } from "./redux/features/authSlice";
 import type { RootState } from "./redux/store";
 import api from "./services/api";
@@ -54,9 +55,30 @@ const App = () => {
       />
 
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/register/otp" element={<Otp />} />
+        <Route
+          path="/"
+          element={
+            <PublicOnlyRoute>
+              <Home />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicOnlyRoute>
+              <Register />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/register/otp"
+          element={
+            <PublicOnlyRoute>
+              <Otp />
+            </PublicOnlyRoute>
+          }
+        />
 
         <Route
           path="/chat"

@@ -52,7 +52,7 @@ const LoginForm = ({ onRegisterClick }: LoginFormProps) => {
 
       dispatch(setCredentials(response.data.accessToken));
 
-      navigate("/chat");
+      navigate("/chat", { replace: true });
     } catch (error: unknown) {
       toast.error(getApiErrorMessage(error, "Something went wrong"));
     }

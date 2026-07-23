@@ -18,7 +18,7 @@ const OAuthCallback = () => {
       // localStorage.setItem("accessToken", accessToken);
       dispatch(setCredentials(accessToken));
       toast.success(message || "Login successful");
-      navigate("/chat");
+      navigate("/chat", { replace: true });
       return;
     }
 
