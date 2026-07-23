@@ -1,14 +1,22 @@
 services:
-  client:
+
+  # ---------------------------------------------------------------
+  # Nginx — reverse proxy + static file server (public entry point)
+  # Replaces the old "client" service.
+  # Builds the React app internally (multi-stage) and serves it,
+  # while proxying /api/* and /ws to the Express server.
+  # ---------------------------------------------------------------
+  nginx:
     build:
       context: .
-      dockerfile: apps/client/Dockerfile
+      dockerfile: nginx/Dockerfile
       args:
-        # Vite bakes VITE_* vars at build time — pass it in from the env file
+        # Vite bakes VITE_* vars at build time.
+        # Empty string = relative URLs; Nginx proxies /api/* to Express.
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    container_name: vectorhub-client
+    container_name: vectorhub-nginx
     ports:
-      - "5173:80"
+      - "80:80"
     depends_on:
       server:
         condition: service_started
@@ -16,13 +24,17 @@ services:
     networks:
       - vectorhub-network
 
+  # ---------------------------------------------------------------
+  # Express — API server (internal only, not exposed to the internet)
+  # ---------------------------------------------------------------
   server:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
     container_name: vectorhub-server
-    ports:
-      - "3000:3000"
+    # No public ports — Nginx reaches Express via internal Docker DNS
+    expose:
+      - "3000"
     env_file:
       - ./.env.docker
     volumes:
@@ -37,13 +49,17 @@ services:
     networks:
       - vectorhub-network
 
+  # ---------------------------------------------------------------
+  # FastAPI — AI service (internal only)
+  # ---------------------------------------------------------------
   ai:
     build:
       context: .
       dockerfile: ai/Dockerfile
     container_name: vectorhub-ai
-    ports:
-      - "8000:8000"
+    # No public ports — Express reaches FastAPI via internal Docker DNS
+    expose:
+      - "8000"
     env_file:
       - ./.env.docker
     volumes:
@@ -65,6 +81,9 @@ services:
     networks:
       - vectorhub-network
 
+  # ---------------------------------------------------------------
+  # PostgreSQL
+  # ---------------------------------------------------------------
   postgres:
     image: postgres:17
     container_name: vectorhub-postgres
@@ -79,8 +98,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
 
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -94,6 +113,9 @@ services:
     networks:
       - vectorhub-network
 
+  # ---------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: vectorhub-redis
@@ -108,8 +130,8 @@ services:
       --appendonly yes
       --requirepass ${REDIS_PASSWORD}
 
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
 
     volumes:
       - redis_data:/data
@@ -123,14 +145,17 @@ services:
     networks:
       - vectorhub-network
 
+  # ---------------------------------------------------------------
+  # Qdrant — vector database (internal only)
+  # ---------------------------------------------------------------
   qdrant:
     image: qdrant/qdrant:latest
     container_name: vectorhub-qdrant
 
     restart: unless-stopped
 
-    ports:
-      - "6333:6333"
+    expose:
+      - "6333"
 
     volumes:
       - qdrant_data:/qdrant/storage

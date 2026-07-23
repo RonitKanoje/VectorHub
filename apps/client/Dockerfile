@@ -1,4 +1,5 @@
-# Build Stage
+# Build Stage only — static files are served by the central Nginx container.
+# See nginx/Dockerfile for the full multi-stage build that consumes this output.
 FROM node:22-alpine AS builder
 
 WORKDIR /app
@@ -15,14 +16,3 @@ RUN npm ci
 COPY apps/client .
 
 RUN npm run build
-
-# Production Stage
-FROM nginx:alpine
-
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]

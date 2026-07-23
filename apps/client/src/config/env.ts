@@ -4,14 +4,14 @@ function trimTrailingSlash(value: string): string {
 
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-if (!rawApiBaseUrl) {
+if (rawApiBaseUrl === undefined || rawApiBaseUrl === null) {
   throw new Error("VITE_API_BASE_URL is not defined");
 }
 
 function toWebSocketUrl(baseUrl: string): string {
   const url = new URL(baseUrl, window.location.origin);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "";
+  url.pathname = "/ws";
   url.search = "";
   url.hash = "";
 
