@@ -3,11 +3,14 @@ services:
     build:
       context: .
       dockerfile: apps/client/Dockerfile
+      args:
+        # Vite bakes VITE_* vars at build time — pass it in from the env file
+        VITE_API_BASE_URL: "http://localhost:3000"
     container_name: vectorhub-client
     ports:
       - "5173:80"
     env_file:
-      - ./.env.docker
+      - ./apps/client/.env.docker
     depends_on:
       server:
         condition: service_started
@@ -24,11 +27,14 @@ services:
       - "3000:3000"
     env_file:
       - ./apps/server/.env.docker
+    volumes:
+      - uploads_data:/app/data/runtime/uploads
     depends_on:
       redis:
         condition: service_healthy
       ai:
-        condition: service_started
+        # Wait until FastAPI is accepting requests before starting Express
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - vectorhub-network
@@ -42,6 +48,8 @@ services:
       - "8000:8000"
     env_file:
       - ./.env.docker
+    volumes:
+      - uploads_data:/app/data/runtime/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +58,12 @@ services:
       qdrant:
         condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - vectorhub-network
 
@@ -119,7 +133,6 @@ services:
 
     ports:
       - "6333:6333"
-      - "6334:6334"
 
     volumes:
       - qdrant_data:/qdrant/storage
@@ -131,6 +144,7 @@ volumes:
   postgres_data:
   redis_data:
   qdrant_data:
+  uploads_data:
 
 networks:
   vectorhub-network:

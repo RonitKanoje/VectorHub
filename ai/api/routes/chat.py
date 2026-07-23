@@ -219,7 +219,7 @@ async def name_chat(
 
 
 @router.post("/nameThreadFromUpload")
-async def name_thread_from_upload(
+def name_thread_from_upload(
     payload: ThreadNameFromUploadRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -227,8 +227,9 @@ async def name_thread_from_upload(
     try:
         thread = get_user_thread(db, payload.thread_id, current_user.user_id)
         
-        # If thread already exists and is not named "New Chat", keep existing name
-        if thread and thread.title and thread.title != "New Chat":
+        default_titles = {"New Chat", "New Analyst Chat", ""}
+        # If thread already exists and is not named a default name, keep existing name
+        if thread and thread.title and thread.title not in default_titles:
             return {"title": thread.title}
 
         

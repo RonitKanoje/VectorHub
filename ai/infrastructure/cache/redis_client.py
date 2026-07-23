@@ -1,11 +1,15 @@
+import os
 import redis
 from redis.exceptions import RedisError
 from ai.core.config import settings
 
 
+_redis_password = os.environ.get("REDIS_PASSWORD") or None
+
 redis_client = redis.Redis(
     host=settings.redis_host,
     port=settings.redis_port,
+    password=_redis_password,
     decode_responses=True,
     socket_connect_timeout=2,
     socket_timeout=2,

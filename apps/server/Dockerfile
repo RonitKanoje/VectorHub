@@ -16,11 +16,13 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY apps/server/package*.json ./
+COPY --chown=node:node apps/server/package*.json ./
 
 RUN npm ci --omit=dev
 
-COPY --from=builder /app/dist ./dist
+COPY --chown=node:node --from=builder /app/dist ./dist
+
+USER node
 
 EXPOSE 3000
 
